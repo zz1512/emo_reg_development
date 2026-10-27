@@ -1,0 +1,51 @@
+{
+  "model": "f(age) = beta*age + gamma*h(age) + gender + meanFD + site_id",
+  "h_age": "direction in the cubic-regression basis s(age, k=3) orthogonal to intercept and age",
+  "penalty": "cubic-regression penalty of that direction, REML",
+  "inference": "Wald p-values of beta and gamma; BH FDR within parcels and within each difference family",
+  "anova": false,
+  "partial_r2": "descriptive 1 - RSS(full)/RSS(covariates only); sign is the sign of the net age change",
+  "difference": "d(age) = f_group_a(age) - f_group_b(age), same decomposition",
+  "covariates": [
+    "gender",
+    "meanFD",
+    "site_id"
+  ],
+  "toy": true,
+  "toy_note": "System masks partition Yeo networks so the pipeline can run. They are not the paper systems.",
+  "counts": {
+    "n_subjects": 36,
+    "n_parcels": 200,
+    "n_system_parcels": 200
+  },
+  "figures": [
+    "e:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\yeo_parcel_trajectories.png",
+    "e:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\yeo_difference_matrix.png",
+    "e:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\system_parcel_trajectories.png",
+    "e:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\system_difference_matrix.png"
+  ],
+  "steps": {
+    "matrix": {
+      "matrices": [
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\yeo_signed_partial_r2_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\yeo_p_linear_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\yeo_q_linear_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\yeo_p_smooth_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\yeo_q_smooth_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\yeo_shape_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\system_signed_partial_r2_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\system_p_linear_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\system_q_linear_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\system_p_smooth_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\system_q_smooth_matrix.csv",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\statistics\\system_shape_matrix.csv"
+      ],
+      "figures": [
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\yeo_parcel_trajectories.png",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\yeo_difference_matrix.png",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\system_parcel_trajectories.png",
+        "E:\\emo_reg_development\\outputs\\fig03\\gam_supplement_toy\\figures\\system_difference_matrix.png"
+      ]
+    }
+  }
+}

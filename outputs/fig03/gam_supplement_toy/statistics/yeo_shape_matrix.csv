@@ -1,0 +1,8 @@
+group,Vis,SomMot,DorsAttn,SalVentAttn,Limbic,Cont,Default
+Vis,,increasing,increasing,nonmonotone,nonmonotone,increasing,nonmonotone
+SomMot,decreasing,,decreasing,decreasing,decreasing,nonmonotone,decreasing
+DorsAttn,decreasing,increasing,,decreasing,decreasing,nonmonotone,decreasing
+SalVentAttn,nonmonotone,increasing,increasing,,nonmonotone,nonmonotone,nonmonotone
+Limbic,nonmonotone,increasing,increasing,nonmonotone,,increasing,increasing
+Cont,decreasing,nonmonotone,nonmonotone,nonmonotone,decreasing,,decreasing
+Default,nonmonotone,increasing,increasing,nonmonotone,decreasing,increasing,

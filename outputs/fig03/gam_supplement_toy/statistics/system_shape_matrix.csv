@@ -1,0 +1,5 @@
+group,reappraisal_only,common_appraisal,nonmodifiable_emotion,modifiable_emotion
+reappraisal_only,,nonmonotone,nonmonotone,nonmonotone
+common_appraisal,nonmonotone,,nonmonotone,decreasing
+nonmodifiable_emotion,nonmonotone,nonmonotone,,decreasing
+modifiable_emotion,nonmonotone,increasing,increasing,
