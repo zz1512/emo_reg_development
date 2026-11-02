@@ -55,17 +55,17 @@ def _design_matrix(metadata: pd.DataFrame) -> pd.DataFrame:
 
 def _read_design_tsv(input_path: Path) -> pd.DataFrame:
     metadata = pd.read_csv(input_path, sep="\t")
-    required = {"sub_id", "age", "gender", "site_id", "meanFD"}
+    required = {"sub_id", "age", "gender", "site_id", "parent_edu", "meanFD"}
     if missing := required - set(metadata.columns):
         raise ValueError(f"Figure 3 TSV is missing design columns: {sorted(missing)}")
-    metadata = metadata.loc[:, ["sub_id", "age", "gender", "site_id", "meanFD"]].copy()
+    metadata = metadata.loc[:, ["sub_id", "age", "gender", "site_id", "parent_edu", "meanFD"]].copy()
     if metadata["sub_id"].isna().any() or metadata["sub_id"].astype(str).str.strip().eq("").any():
         raise ValueError("Figure 3 TSV sub_id values must be present")
     if metadata["sub_id"].astype(str).duplicated().any():
         raise ValueError("Figure 3 TSV must contain one row per unique sub_id")
-    for column in ("age", "gender", "site_id", "meanFD"):
+    for column in ("age", "gender", "site_id", "parent_edu", "meanFD"):
         metadata[column] = pd.to_numeric(metadata[column], errors="raise")
-    if not np.isfinite(metadata[["age", "gender", "site_id", "meanFD"]].to_numpy()).all():
+    if not np.isfinite(metadata[["age", "gender", "site_id", "parent_edu", "meanFD"]].to_numpy()).all():
         raise ValueError("Figure 3 design columns must contain only finite values")
     if set(metadata["gender"].unique()) != {0, 1}:
         raise ValueError("Figure 3 gender codes must be 0 and 1")
@@ -225,7 +225,7 @@ def _save_volume_age_gam(metadata: pd.DataFrame, paths: dict[str, list[Path]],
         sums = np.bincount(roi_index, weights=delta, minlength=roi_ids.size)
         Y[:, subject_idx] = sums / roi_counts
 
-    X = metadata[["age", "gender", "meanFD", "site_id"]].astype(float)
+    X = metadata[["age", "gender", "site_id", "parent_edu", "meanFD"]].astype(float)
     age = X["age"].to_numpy()
     Xlin_all = X[[col for col in X.columns if col != "age"]].to_numpy()
     lam_grid = 10.0 ** np.linspace(-5, 5, 12)
@@ -303,6 +303,7 @@ def _make_toy_volume_inputs(directory: Path, output_dir: Path,
         "gender": np.tile([0, 1], n_subjects // 2),
         "site_id": np.tile([1, 2, 3, 4], n_subjects // 4),
         "meanFD": rng.uniform(0.04, 0.24, n_subjects),
+        "parent_edu": np.tile([1, 2, 3, 4], n_subjects // 4),
     })
     atlas_img = nib.load(str(volume_atlas_path))
     atlas = np.rint(atlas_img.get_fdata()).astype(np.int32)
@@ -354,6 +355,8 @@ def run_figure_3(*, input_path: Path | None, toy: bool, output_dir: Path,
             "analysis_space": "MNI152 volume; fsLR 32k surface projection for Workbench maps",
             "condition_maps": {"rpsl": "beta_0001.nii.gz", "lkng": "beta_0002.nii.gz", "lknt": "beta_0003.nii.gz"},
             "design_columns": ["intercept", "age", "gender", "meanFD", "site_id"],
+            "gam_covariates": ["gender", "site_id", "parent_edu", "meanFD"],
+            "gam_reduced_model": "intercept + gender + site_id + parent_edu + meanFD",
             "activation_fdr_alpha": FDR_ALPHA_FIG3A,
             "workbench_borders_generated": bool(borders_3a and borders_3d),
             "gam_configuration": {"smooth_var": "age", "k_splines": 5,
@@ -379,6 +382,8 @@ def run_figure_3(*, input_path: Path | None, toy: bool, output_dir: Path,
         "activation_fdr_alpha": FDR_ALPHA_FIG3A,
         "analysis_space": "MNI152 volume; fsLR 32k surface projection for Workbench maps",
         "design_columns": ["intercept", "age", "gender", "meanFD", "site_id"],
+        "gam_covariates": ["gender", "site_id", "parent_edu", "meanFD"],
+        "gam_reduced_model": "intercept + gender + site_id + parent_edu + meanFD",
         "workbench_borders_generated": bool(borders_3a and borders_3d),
         "age_gam_source": "volume Schaefer ROI means; mylib.stat.stats GAM fitting and nested ANOVA",
         "gam_configuration": {

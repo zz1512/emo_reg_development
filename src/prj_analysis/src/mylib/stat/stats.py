@@ -117,6 +117,21 @@ def edf_from_pygam(model) -> Optional[float]:
         pass
     return None
 
+def _reduced_design(n_obs: int, Xlin: Optional[np.ndarray]) -> np.ndarray:
+    """Intercept column, then the linear covariates. This is the no-age model."""
+    intercept = np.ones((n_obs, 1), dtype=float)
+    if Xlin is None or np.size(Xlin) == 0:
+        return intercept
+    covariates = np.asarray(Xlin, dtype=float)
+    if covariates.ndim == 1:
+        covariates = covariates.reshape(-1, 1)
+    if covariates.shape[0] != n_obs:
+        raise ValueError(
+            f"Reduced-model covariates have {covariates.shape[0]} rows; expected {n_obs}"
+        )
+    return np.hstack([intercept, covariates])
+
+
 def fit_gam_full_and_reduced(
     ysub: np.ndarray,           # ROI y for valid subjects
     Xs: np.ndarray,             # shape (n, 1), the smooth var (age)
@@ -128,22 +143,36 @@ def fit_gam_full_and_reduced(
     verbose: bool = False
 ):
     """
-    Fit FULL (smooth + linear) and REDUCED (linear-only) models with pygam,
-    and return (rss_full, edf_full, rss_red, edf_red, model_full).
+    Fit FULL (smooth + linear) and REDUCED (intercept + linear) models.
+    The reduced design always contains a column of ones, so it is nested in
+    the full model, which uses fit_intercept=True. Return
+    (rss_full, edf_full, rss_red, edf_red, model_full).
     """
-    # Build design for FULL
+    # Build design for FULL. Only the age smooth is penalized. A 1-d lam
+    # grid would be copied onto every term, which ridge-shrinks the covariates
+    # and makes the full model unable to contain the reduced model.
     if Xlin is not None and Xlin.size > 0:
         Z_full = np.hstack([Xs, Xlin])  # col 0 will be smoothed
         terms = s(0, n_splines=k_splines)
         for j in range(1, Z_full.shape[1]):
-            terms += l(j)
+            terms += l(j, penalties=None)
+        n_linear = Z_full.shape[1] - 1
     else:
         Z_full = Xs
         terms = s(0, n_splines=k_splines)
+        n_linear = 0
 
     mf = LinearGAM(terms, max_iter=max_iter, fit_intercept=True, verbose=verbose)
+    smooth_lam = np.asarray(lam_grid, dtype=float).reshape(-1)
+    if n_linear:
+        lam_search = np.column_stack([
+            smooth_lam,
+            np.zeros((smooth_lam.size, n_linear), dtype=float),
+        ])
+    else:
+        lam_search = smooth_lam
     try:
-        mf.gridsearch(Z_full, ysub, lam=lam_grid)
+        mf.gridsearch(Z_full, ysub, lam=lam_search, progress=False)
     except Exception:
         mf.fit(Z_full, ysub)
 
@@ -151,29 +180,23 @@ def fit_gam_full_and_reduced(
     rss_full = rss_from_predictions(ysub, yhat_full)
     edf_full = edf_from_pygam(mf)
 
-    # REDUCED: linear-only (no smooth)
-    if Xlin is not None and Xlin.size > 0:
-        # simple OLS for reduced (faster and stable)
-        Xr = Xlin
-        XtX = Xr.T @ Xr
-        try:
-            beta = np.linalg.solve(XtX, Xr.T @ ysub)
-        except np.linalg.LinAlgError:
-            beta = np.linalg.pinv(XtX, rcond=1e-12) @ (Xr.T @ ysub)
-        yhat_red = Xr @ beta
-        edf_red = float(np.linalg.matrix_rank(Xr))
-    else:
-        # intercept-only reduced model
-        yhat_red = np.full_like(ysub, ysub.mean())
-        edf_red = 1.0
+    # REDUCED: intercept plus the same linear covariates, without the age smooth.
+    Xr = _reduced_design(ysub.shape[0], Xlin)
+    XtX = Xr.T @ Xr
+    try:
+        beta = np.linalg.solve(XtX, Xr.T @ ysub)
+    except np.linalg.LinAlgError:
+        beta = np.linalg.pinv(XtX, rcond=1e-12) @ (Xr.T @ ysub)
+    yhat_red = Xr @ beta
+    edf_red = float(np.linalg.matrix_rank(Xr))
 
     rss_red = rss_from_predictions(ysub, yhat_red)
 
     # If pygam didn't provide edf, approximate: edf_full ≈ number of columns in model matrix
     if edf_full is None:
-        # crude fallback: smooth k + linear cols
-        p_lin = 0 if Xlin is None else Xlin.shape[1]
-        edf_full = float(min(ysub.size - 1, k_splines + p_lin))
+        # crude fallback: intercept + smooth basis + linear columns
+        p_lin = 0 if Xlin is None or np.size(Xlin) == 0 else np.asarray(Xlin).reshape(ysub.shape[0], -1).shape[1]
+        edf_full = float(min(ysub.size - 1, 1 + k_splines + p_lin))
 
     return rss_full, edf_full, rss_red, edf_red, mf
 

@@ -6,7 +6,11 @@ The analysis runners use the following paths by default:
 | Resource | Used by |
 |---|---|
 | `atlases/schaefer2018/Schaefer2018_200Parcels_7Networks_order.dlabel.nii` | Fig. 3 and Fig. 5 surface parcel mapping |
+| `atlases/schaefer2018/Schaefer2018_400Parcels_7Networks_order.dlabel.nii` | 400-parcel Yeo-7 fsLR surface labels |
+| `atlases/schaefer2018/Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz` | 400-parcel Yeo-7 volume labels |
 | `atlases/schaefer2018/Schaefer2018_200Parcels_7Networks_order_FSLMNI152_2mm.nii.gz` | Fig. 4 volume-space parcel mapping |
+| `atlases/schaefer2018/Schaefer2018_400Parcels_Kong2022_17Networks_order.dlabel.nii` | Kong 2022 400-parcel fsLR surface labels |
+| `atlases/schaefer2018/Schaefer2018_400Parcels_Kong2022_17Networks_order_info.txt` | Names and colors for those 400 parcels |
 | `atlases/yeo2011/Yeo2011_7Networks_N1000.dlabel.nii` | Fig. 3, 4, and 5 surface network analysis |
 | `atlases/yeo2011/Yeo2011_7Networks_MNI152_FreeSurferConformed1mm_LiberalMask.nii.gz` | Fig. 4 volume network analysis |
 | `reference_maps/` | Fig. 3 task-map comparisons and Fig. 5 reference maps |

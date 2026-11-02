@@ -1810,14 +1810,44 @@ if __name__ == "__main__":
     
     #%% GAM ON AGE EFFECT OF INTERESTS
     # ---------------------------------------------------------------------------------------
-    
-    # X = pd.DataFrame({
-    #         'age': np.array(subs_age)[:, 0],
-    #         'gender': gender[:, 0],
-    #         'meanFD': meanFD[:, 0],
-    #         'site': sites[:, 0],
-    #     })
-    
+    # Full model: intercept + s(age) + gender + site_id + parent_edu + meanFD.
+    # The reduced model is fitted inside fit_gam_full_and_reduced and now
+    # contains the same intercept and the four covariates. The vertex GLM
+    # above keeps its own design matrix.
+    import sys
+    _repo_root = next(
+        (candidate for candidate in Path(__file__).resolve().parents
+         if (candidate / "analysis" / "fig03" / "gam_supplement" / "prepare_inputs.py").is_file()),
+        None,
+    )
+    if _repo_root is None:
+        raise FileNotFoundError(
+            "Cannot find analysis/fig03/gam_supplement/prepare_inputs.py above this script"
+        )
+    if str(_repo_root) not in sys.path:
+        sys.path.insert(0, str(_repo_root))
+    from analysis.fig03.gam_supplement.prepare_inputs import (
+        ORIGINAL_MEANFD,
+        ORIGINAL_PARENT_EDU,
+        attach_mean_fd,
+        attach_parent_education,
+    )
+
+    _base_X = dict_X[(6, 19)].reset_index(drop=True)
+    gam_table = pd.DataFrame({
+        "sub_id": [str(sub) for sub in sub_ls_test_ER],
+        "age": np.asarray(_base_X["age"], dtype=float).ravel(),
+        "gender": np.asarray(_base_X["gender"], dtype=float).ravel(),
+        "site_id": np.asarray(_base_X["site"], dtype=float).ravel(),
+    })
+    if len(gam_table) != len(gii_L_ls_rpsl):
+        raise ValueError("GAM covariates and surface images are not aligned")
+    gam_table, _dropped_parent_edu = attach_parent_education(gam_table, ORIGINAL_PARENT_EDU)
+    gam_table = attach_mean_fd(gam_table, ORIGINAL_MEANFD)
+    _position = {sub: i for i, sub in enumerate(str(sub) for sub in sub_ls_test_ER)}
+    _keep = [_position[sub] for sub in gam_table["sub_id"].astype(str)]
+    print(f"GAM sample: {len(_keep)} subjects with age, gender, site_id, parent_edu, meanFD")
+
     gam_cfg = Sts.GAMConfig(
         smooth_var="age", 
         k_splines=5, 
@@ -1831,11 +1861,11 @@ if __name__ == "__main__":
         verbose=False)
     
     results = surf.gam_AmB_surf_roi(
-        A_lh_paths=gii_L_ls_rpsl, 
-        A_rh_paths=gii_R_ls_rpsl, 
-        B_lh_paths=gii_L_ls_lkng, 
-        B_rh_paths=gii_R_ls_lkng,
-        X=dict_X[(6, 19)][['age', 'gender', 'site']], 
+        A_lh_paths=[gii_L_ls_rpsl[i] for i in _keep], 
+        A_rh_paths=[gii_R_ls_rpsl[i] for i in _keep], 
+        B_lh_paths=[gii_L_ls_lkng[i] for i in _keep], 
+        B_rh_paths=[gii_R_ls_lkng[i] for i in _keep],
+        X=gam_table[["age", "gender", "site_id", "parent_edu", "meanFD"]], 
         parc_lh=parc_fsLR, parc_rh=parc_fsLR,
         hemi_loader_metric=surf._load_surf_metric,
         gam_cfg=gam_cfg,

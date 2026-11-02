@@ -27,6 +27,10 @@ dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 suppressPackageStartupMessages(library(mgcv))
 
 design <- read.csv(file.path(input_dir, "design.csv"), stringsAsFactors = FALSE)
+if ("in_analysis" %in% names(design)) {
+  design <- design[!is.na(design$in_analysis) & as.integer(design$in_analysis) == 1, , drop = FALSE]
+  rownames(design) <- NULL
+}
 covariates <- c("gender", "site_id", "parent_edu", "meanFD")
 needed <- c("sub_id", "age", covariates)
 # Intercept and linear age, plus each covariate, are unpenalized.

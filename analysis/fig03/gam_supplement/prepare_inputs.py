@@ -117,6 +117,60 @@ def schaefer_parcel_info(dlabel_path: Path) -> pd.DataFrame:
     return info
 
 
+def read_schaefer_order_info(path: Path) -> pd.DataFrame:
+    """Read a Schaefer order_info.txt table. Networks are not restricted to Yeo 7."""
+    if not path.is_file():
+        raise FileNotFoundError(f"Schaefer order info not found: {path}")
+    rows = []
+    pending_name = ""
+    for line_number, raw_line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        text = raw_line.strip()
+        if not text:
+            continue
+        parts = text.split()
+        if parts[0].isdigit():
+            if not pending_name:
+                raise ValueError(f"{path} line {line_number} has a parcel id before its name")
+            name_parts = pending_name.split("_")
+            if len(name_parts) < 4:
+                raise ValueError(f"Unrecognized Schaefer parcel name: {pending_name}")
+            rows.append({
+                "parcel": int(parts[0]),
+                "name": pending_name,
+                "hemi": name_parts[1],
+                "network": name_parts[2],
+            })
+            pending_name = ""
+        else:
+            pending_name = text
+    if pending_name:
+        raise ValueError(f"{path} ends on a parcel name with no id line: {pending_name}")
+    info = pd.DataFrame(rows)
+    if info.empty:
+        raise ValueError(f"Schaefer order info has no parcels: {path}")
+    if info["parcel"].duplicated().any():
+        raise ValueError(f"Schaefer order info has duplicate parcel ids: {path}")
+    return info.sort_values("parcel").reset_index(drop=True)
+
+
+def _parcel_table_for_labels(table: pd.DataFrame, roi_ids: np.ndarray) -> pd.DataFrame:
+    required = {"parcel", "name", "hemi", "network"}
+    missing_columns = sorted(required - set(table.columns))
+    if missing_columns:
+        raise ValueError(f"Parcel info table is missing columns: {', '.join(missing_columns)}")
+    info = table.copy()
+    info["parcel"] = info["parcel"].astype(int)
+    if info["parcel"].duplicated().any():
+        raise ValueError("Parcel info table has duplicate parcel ids")
+    missing = sorted(set(int(parcel) for parcel in roi_ids) - set(info["parcel"].astype(int)))
+    if missing:
+        preview = ", ".join(str(parcel) for parcel in missing[:8])
+        raise ValueError(f"Volume parcel ids are absent from the parcel info table: {preview}")
+    info = info[info["parcel"].isin(roi_ids)].copy()
+    info["system"] = ""
+    return info.sort_values("parcel").reset_index(drop=True)
+
+
 def _hemisphere_vertex_labels(cifti_path: Path, hemi: str) -> np.ndarray:
     """Schaefer labels on one fsLR hemisphere, in the same order as a metric GIFTI."""
     image = nib.load(str(cifti_path))
@@ -482,12 +536,17 @@ def _read_text_table(path: Path) -> pd.DataFrame:
     return table
 
 
-def attach_parent_education(metadata: pd.DataFrame, family_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Add parent_edu from 父母受教育水平_父母受教育水平, aligned on 被试编号.
+OBSOLETE_BEFORE_DESIGN = "design_before_covariate_filters.csv"
+ROSTER_COLUMNS = (
+    "sub_id", "age", "gender", "site_id", "parent_edu", "meanFD", "in_analysis", "excluded_by",
+)
 
-    Subjects with no row, a blank value, or disagreeing duplicate rows do not
-    stay in the design. The returned drop table records which of those happened.
-    A low id-match rate stops the run instead of fitting a mismatched sample.
+
+def _load_parent_education(family_path: Path) -> tuple[dict[str, float], list[tuple[str, list[float]]], pd.DataFrame]:
+    """Read 父母受教育水平_父母受教育水平 keyed by 被试编号.
+
+    Conflicting duplicate rows are returned and not resolved. Callers that fit
+    a model still stop on those rows. The before-filter list records them.
     """
     if not family_path.is_file():
         raise FileNotFoundError(f"Parental-education table not found: {family_path}")
@@ -504,15 +563,69 @@ def attach_parent_education(metadata: pd.DataFrame, family_path: Path) -> tuple[
     family = family[family["_key"] != ""]
     values = pd.to_numeric(family[PARENT_EDU_VALUE_COLUMN], errors="coerce")
     conflicts = []
-    resolved = {}
+    resolved: dict[str, float] = {}
     for key, numeric in values.groupby(family["_key"], sort=False):
         finite = pd.unique(numeric[np.isfinite(numeric.to_numpy(dtype=float))])
         if len(finite) > 1:
-            conflicts.append((key, [float(item) for item in finite]))
+            conflicts.append((str(key), [float(item) for item in finite]))
         elif len(finite) == 1:
-            resolved[key] = float(finite[0])
+            resolved[str(key)] = float(finite[0])
         else:
-            resolved[key] = np.nan
+            resolved[str(key)] = np.nan
+    return resolved, conflicts, family
+
+
+def _parent_education_status(metadata: pd.DataFrame, family_path: Path) -> tuple[pd.DataFrame, list[tuple[str, list[float]]], str]:
+    """Per-subject parent_edu status for the cohort. Does not drop rows.
+
+    A missing or unreadable table is a status, so the before-filter list can
+    be written before the model sample stops. Conflicts stay in the returned
+    list even when that id is not in this cohort.
+    """
+    n_rows = len(metadata)
+    parent_edu = np.full(n_rows, np.nan)
+    reason = np.full(n_rows, "", dtype=object)
+    value_text = np.full(n_rows, "", dtype=object)
+    if not family_path.is_file():
+        reason[:] = "file_missing"
+        return _parent_status_frame(parent_edu, reason, value_text), [], "file_missing"
+    try:
+        resolved, conflicts, _family = _load_parent_education(family_path)
+    except ValueError as exc:
+        token = "columns_missing" if "is missing" in str(exc) else "unreadable"
+        reason[:] = token
+        return _parent_status_frame(parent_edu, reason, value_text), [], token
+    conflict_map = {key: levels for key, levels in conflicts}
+    keys = metadata["sub_id"].map(_parent_edu_key)
+    parent_edu = keys.map(resolved).to_numpy(dtype=float)
+    is_conflict = keys.isin(set(conflict_map)).to_numpy()
+    in_table = keys.isin(set(resolved)).to_numpy()
+    has_value = np.isfinite(parent_edu)
+    reason[is_conflict] = "conflicting_values"
+    reason[~is_conflict & ~in_table] = "not_in_table"
+    reason[~is_conflict & in_table & ~has_value] = "missing_value"
+    for index, key in enumerate(keys):
+        if key in conflict_map:
+            value_text[index] = ";".join(f"{value:g}" for value in conflict_map[key])
+    return _parent_status_frame(parent_edu, reason, value_text), conflicts, ""
+
+
+def _parent_status_frame(parent_edu: np.ndarray, reason: np.ndarray, value_text: np.ndarray) -> pd.DataFrame:
+    return pd.DataFrame({
+        "parent_edu": parent_edu,
+        "parent_edu_reason": reason,
+        "parent_edu_values": value_text,
+    })
+
+
+def attach_parent_education(metadata: pd.DataFrame, family_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Add parent_edu from 父母受教育水平_父母受教育水平, aligned on 被试编号.
+
+    Subjects with no row, a blank value, or disagreeing duplicate rows do not
+    stay in the design. The returned drop table records which of those happened.
+    A low id-match rate stops the run instead of fitting a mismatched sample.
+    """
+    resolved, conflicts, family = _load_parent_education(family_path)
     if conflicts:
         preview = "; ".join(f"{key} -> {levels}" for key, levels in conflicts[:8])
         raise ValueError(
@@ -548,7 +661,7 @@ def attach_parent_education(metadata: pd.DataFrame, family_path: Path) -> tuple[
     return kept, dropped.reset_index(drop=True)
 
 
-def _read_meanfd_table(path: Path) -> pd.DataFrame:
+def _read_meanfd_table(path: Path, quiet: bool = False) -> pd.DataFrame:
     """Read run-level mean_fd and return one averaged value per subject.
 
     qc_res_subs_runs_fmri.csv has one row per run. The emotion-regulation
@@ -588,9 +701,10 @@ def _read_meanfd_table(path: Path) -> pd.DataFrame:
         "mean_FD": resolved,
         "n_runs": n_runs,
     }).reset_index(drop=True)
-    print(
-        f"mean_fd averaged over EMO and SOC: {len(summary)} subjects from {len(runs)} run rows in {path.name}."
-    )
+    if not quiet:
+        print(
+            f"mean_fd averaged over EMO and SOC: {len(summary)} subjects from {len(runs)} run rows in {path.name}."
+        )
     return summary
 
 
@@ -626,6 +740,246 @@ def attach_mean_fd(metadata: pd.DataFrame, meanfd_path: Path) -> pd.DataFrame:
         f"meanFD aligned all {len(kept)} analysis subjects from {meanfd_path.name}."
     )
     return kept
+
+
+def _meanfd_status(metadata: pd.DataFrame, meanfd_path: Path) -> tuple[np.ndarray, np.ndarray, str]:
+    """Per-subject meanFD for the whole cohort. A missing value does not drop the row."""
+    n_rows = len(metadata)
+    meanfd = np.full(n_rows, np.nan)
+    reason = np.full(n_rows, "", dtype=object)
+    if not meanfd_path.is_file():
+        reason[:] = "file_missing"
+        return meanfd, reason, "file_missing"
+    try:
+        motion = _read_meanfd_table(meanfd_path, quiet=True)
+    except ValueError:
+        reason[:] = "unreadable"
+        return meanfd, reason, "unreadable"
+    motion["_key"] = motion["sub_id"].map(_parent_edu_key)
+    resolved = {
+        key: float(value)
+        for key, value in zip(motion["_key"], motion["mean_FD"])
+        if np.isfinite(value)
+    }
+    mapped = metadata["sub_id"].map(_parent_edu_key).map(resolved).to_numpy(dtype=float)
+    reason[~np.isfinite(mapped)] = "missing"
+    return mapped, reason, ""
+
+
+def _has_effect_volumes(volume_dir: Path, metadata: pd.DataFrame) -> np.ndarray:
+    """True when both Reappraise and Look effectSize files exist. Does not open them."""
+    found = np.zeros(len(metadata), dtype=bool)
+    if not volume_dir.is_dir():
+        return found
+    for index, subject in enumerate(metadata["sub_id"].astype(str)):
+        folder = _volume_subject_dir(volume_dir, subject)
+        if folder is None:
+            continue
+        rpsl = folder / EFFECT_VOLUME_FILES["rpsl"]
+        lkng = folder / EFFECT_VOLUME_FILES["lkng"]
+        found[index] = rpsl.is_file() and lkng.is_file()
+    return found
+
+
+def _first_exclusion(parent_reason: np.ndarray, has_volume: np.ndarray, meanfd_reason: np.ndarray) -> np.ndarray:
+    """First filter that removes the subject, in the order the model sample is built."""
+    excluded = np.full(len(parent_reason), "", dtype=object)
+    for index, reason in enumerate(parent_reason):
+        if reason:
+            excluded[index] = f"parent_edu_{reason}"
+        elif not bool(has_volume[index]):
+            excluded[index] = "no_effect_volume"
+        elif meanfd_reason[index]:
+            excluded[index] = f"meanFD_{meanfd_reason[index]}"
+    return excluded
+
+
+def _ids_preview(identifiers: list[str], limit: int = 30) -> str:
+    shown = identifiers[:limit]
+    text = ", ".join(shown)
+    if len(identifiers) > limit:
+        return f"{text} ({len(identifiers)} subjects)"
+    return text
+
+
+def build_subject_roster(metadata: pd.DataFrame, parent_edu_path: Path,
+                         volume_dir: Path, meanfd_path: Path) -> pd.DataFrame:
+    """One design table for every subject after the valid-list and second-level cut.
+
+    Covariates are filled when a single value exists and left blank otherwise.
+    in_analysis is 1 only for subjects who enter the model. excluded_by is the
+    first reason a subject is left out. A sample-wide stop is written on the
+    rows that had no earlier reason, as sample_stop:<reason>. Conflicts, a
+    match rate below one half, and a missing meanFD still stop the fit after
+    this table is written. gender and site_id are not row filters.
+    """
+    parent, conflicts, parent_problem = _parent_education_status(metadata, parent_edu_path)
+    has_volume = _has_effect_volumes(volume_dir, metadata)
+    meanfd, meanfd_reason, meanfd_problem = _meanfd_status(metadata, meanfd_path)
+    parent_reason = parent["parent_edu_reason"].to_numpy(dtype=object)
+    excluded_by = _first_exclusion(parent_reason, has_volume, meanfd_reason)
+    sample_stop, _sample_stop_detail = _sample_stop(
+        metadata, parent_reason, has_volume, meanfd_reason, parent_problem, meanfd_problem,
+        conflicts, parent_edu_path, volume_dir, meanfd_path,
+    )
+    if sample_stop:
+        excluded_by = excluded_by.copy()
+        excluded_by[excluded_by == ""] = f"sample_stop:{sample_stop}"
+    in_analysis = (excluded_by == "").astype(int)
+    table = pd.DataFrame({
+        "sub_id": metadata["sub_id"].astype(str).to_numpy(),
+        "age": pd.to_numeric(metadata["age"], errors="coerce").to_numpy(),
+        "gender": pd.to_numeric(metadata["gender"], errors="coerce").to_numpy(),
+        "site_id": pd.to_numeric(metadata["site_id"], errors="coerce").to_numpy(),
+        "parent_edu": parent["parent_edu"].to_numpy(dtype=float),
+        "meanFD": meanfd,
+        "in_analysis": in_analysis,
+        "excluded_by": excluded_by,
+    })
+    return table.loc[:, list(ROSTER_COLUMNS)]
+
+
+def _sample_stop(metadata: pd.DataFrame, parent_reason: np.ndarray, has_volume: np.ndarray,
+                 meanfd_reason: np.ndarray, parent_problem: str, meanfd_problem: str,
+                 conflicts: list[tuple[str, list[float]]], parent_edu_path: Path,
+                 volume_dir: Path, meanfd_path: Path) -> tuple[str, str]:
+    """Reason the fit stops, matching the order of the checks that raise."""
+    if parent_problem == "file_missing":
+        return "parent_edu_file_missing", str(parent_edu_path)
+    if parent_problem in {"columns_missing", "unreadable"}:
+        return f"parent_edu_{parent_problem}", parent_edu_path.name
+    if conflicts:
+        preview = "; ".join(f"{key} -> {levels}" for key, levels in conflicts[:8])
+        return "parent_edu_conflicting_values", preview
+    n_design = len(metadata)
+    in_table = np.isin(parent_reason, ["", "missing_value"])
+    n_in_table = int(in_table.sum())
+    if n_design == 0 or n_in_table < 0.5 * n_design:
+        return "parent_edu_match_rate", f"{n_in_table} of {n_design} imaging ids match the family table"
+    if not volume_dir.is_dir():
+        return "volume_dir_missing", str(volume_dir)
+    passed_parent = parent_reason == ""
+    if passed_parent.any() and not bool(has_volume[passed_parent].any()):
+        return "no_effect_volume", "no subject who passed parent education has both effectSize files"
+    if meanfd_problem == "file_missing":
+        return "meanFD_file_missing", str(meanfd_path)
+    if meanfd_problem == "unreadable":
+        return "meanFD_unreadable", meanfd_path.name
+    still_in = passed_parent & has_volume
+    missing_motion = still_in & (meanfd_reason != "")
+    if bool(missing_motion.any()):
+        missing_ids = metadata.loc[missing_motion, "sub_id"].astype(str).tolist()
+        return "meanFD_missing", _ids_preview(missing_ids)
+    return "", ""
+
+
+def analysis_design(table: pd.DataFrame) -> pd.DataFrame:
+    """Subjects who enter the model, in design.csv order.
+
+    A table without in_analysis is already the analysis sample.
+    """
+    columns = [column for column in ("sub_id", "age", "gender", "site_id", "parent_edu", "meanFD") if column in table.columns]
+    if "in_analysis" not in table.columns:
+        return table.loc[:, columns].reset_index(drop=True)
+    entered = pd.to_numeric(table["in_analysis"], errors="coerce").fillna(0).to_numpy() == 1
+    return table.loc[entered, columns].reset_index(drop=True)
+
+
+def n_analysis_subjects(table: pd.DataFrame) -> int:
+    """How many design.csv rows enter the model."""
+    if "in_analysis" not in table.columns:
+        return int(len(table))
+    return int((pd.to_numeric(table["in_analysis"], errors="coerce").fillna(0) == 1).sum())
+
+
+def _remove_obsolete_before_design(input_dir: Path) -> None:
+    obsolete = input_dir / OBSOLETE_BEFORE_DESIGN
+    if obsolete.is_file():
+        obsolete.unlink()
+
+
+def write_subject_roster(input_dir: Path, metadata: pd.DataFrame, parent_edu_path: Path,
+                         volume_dir: Path, meanfd_path: Path) -> pd.DataFrame:
+    """Write design.csv for the whole cohort before parent_edu or meanFD can stop the run."""
+    input_dir.mkdir(parents=True, exist_ok=True)
+    table = build_subject_roster(metadata, parent_edu_path, volume_dir, meanfd_path)
+    path = input_dir / "design.csv"
+    table.to_csv(path, index=False)
+    _remove_obsolete_before_design(input_dir)
+    n_in = int(table["in_analysis"].sum())
+    stopped = table.loc[table["excluded_by"].astype(str).str.startswith("sample_stop:"), "excluded_by"]
+    stop = str(stopped.iloc[0]) if len(stopped) else ""
+    print(
+        f"Design roster: {len(table)} subjects, {n_in} enter the analysis"
+        + (f", sample stops at {stop}" if stop else "")
+        + f". Wrote {path}."
+    )
+    reasons = table["excluded_by"].replace("", "(entered)")
+    summary = ", ".join(f"{name}={int(count)}" for name, count in reasons.value_counts().items())
+    print(f"Design roster reasons: {summary}")
+    return table
+
+
+def ensure_subject_roster(input_dir: Path, demographics_path: Path, subjects_path: Path,
+                          excluded_path: Path, parent_edu_path: Path, meanfd_path: Path,
+                          volume_dir: Path) -> None:
+    """Upgrade a saved design.csv that lists only the analysis sample.
+
+    The saved analysis ids must match the current source tables. EffectSize
+    images are not opened. A design.csv that already has both roster columns
+    is left unchanged.
+    """
+    path = input_dir / "design.csv"
+    if path.is_file():
+        header = pd.read_csv(path, nrows=0)
+        if {"in_analysis", "excluded_by"}.issubset(set(header.columns)):
+            _remove_obsolete_before_design(input_dir)
+            return
+    if not (demographics_path.is_file() and subjects_path.is_file() and excluded_path.is_file()):
+        print(f"{input_dir} has no full design roster, and the subject lists are unavailable, so it was not rebuilt.")
+        return
+    metadata = build_design_from_sources(demographics_path, subjects_path, excluded_path)
+    roster = build_subject_roster(metadata, parent_edu_path, volume_dir, meanfd_path)
+    if path.is_file():
+        saved = pd.read_csv(path, dtype={"sub_id": str})
+        saved_ids = saved["sub_id"].astype(str).tolist()
+        roster_ids = analysis_design(roster)["sub_id"].astype(str).tolist()
+        if saved_ids != roster_ids:
+            print(
+                "Warning: the saved design.csv does not match the current source tables. "
+                "The full roster was not written over it."
+            )
+            return
+    input_dir.mkdir(parents=True, exist_ok=True)
+    roster.to_csv(path, index=False)
+    _remove_obsolete_before_design(input_dir)
+    print(f"Rebuilt design.csv as the full subject roster without reading volume images: {path}")
+
+
+def apply_meanfd_exclusion(design: pd.DataFrame, max_meanfd: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Apply a meanFD ceiling without removing rows from a full roster.
+
+    People already excluded keep their reason. People in the analysis with
+    meanFD above the threshold get excluded_by meanFD_gt_<threshold> and
+    in_analysis 0. A design without those columns is still returned as the
+    kept rows only.
+    """
+    table = design.copy()
+    table["sub_id"] = table["sub_id"].astype(str)
+    threshold = float(max_meanfd)
+    if "in_analysis" not in table.columns or "excluded_by" not in table.columns:
+        motion = pd.to_numeric(table["meanFD"], errors="raise")
+        keep = motion.to_numpy(dtype=float) <= threshold
+        dropped = table.loc[~keep, ["sub_id", "meanFD"]].copy()
+        kept = table.loc[keep].reset_index(drop=True)
+        return kept, dropped.reset_index(drop=True)
+    entered = pd.to_numeric(table["in_analysis"], errors="coerce").fillna(0).to_numpy() == 1
+    motion = pd.to_numeric(table["meanFD"], errors="coerce").to_numpy(dtype=float)
+    over = entered & np.isfinite(motion) & (motion > threshold)
+    table.loc[over, "in_analysis"] = 0
+    table.loc[over, "excluded_by"] = f"meanFD_gt_{threshold:g}"
+    dropped = table.loc[over, ["sub_id", "meanFD"]].copy()
+    return table.reset_index(drop=True), dropped.reset_index(drop=True)
 
 
 def _finalize_design(metadata: pd.DataFrame) -> pd.DataFrame:
@@ -801,17 +1155,30 @@ def make_toy_volumes(directory: Path, volume_atlas: Path, n_subjects: int = 36) 
 def write_inputs(output_dir: Path, metadata: pd.DataFrame, parcel_response: pd.DataFrame,
                  parcel_info: pd.DataFrame, group_response: pd.DataFrame) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
-    design_columns = ["sub_id", "age", "gender", "site_id", "parent_edu", "meanFD"]
-    design = metadata.loc[:, design_columns].copy()
-    design["sub_id"] = design["sub_id"].astype(str)
-    if not np.isfinite(design[["age", "gender", "site_id", "parent_edu", "meanFD"]].to_numpy(dtype=float)).all():
-        raise ValueError("Design columns age, gender, site_id, parent_edu, and meanFD must be finite")
-    design.to_csv(output_dir / "design.csv", index=False)
+    design_path = output_dir / "design.csv"
+    header = pd.read_csv(design_path, nrows=0) if design_path.is_file() else pd.DataFrame()
+    roster_present = {"in_analysis", "excluded_by"}.issubset(set(header.columns))
+    if roster_present:
+        roster = pd.read_csv(design_path, dtype={"sub_id": str})
+        entered = analysis_design(roster)["sub_id"].astype(str).tolist()
+        model_ids = metadata["sub_id"].astype(str).tolist()
+        if entered != model_ids:
+            raise ValueError(
+                "design.csv rows with in_analysis = 1 do not match the subjects whose volumes were read"
+            )
+    else:
+        design_columns = ["sub_id", "age", "gender", "site_id", "parent_edu", "meanFD"]
+        design = metadata.loc[:, design_columns].copy()
+        design["sub_id"] = design["sub_id"].astype(str)
+        if not np.isfinite(design[["age", "gender", "site_id", "parent_edu", "meanFD"]].to_numpy(dtype=float)).all():
+            raise ValueError("Design columns age, gender, site_id, parent_edu, and meanFD must be finite")
+        design.to_csv(design_path, index=False)
     parcel_response.to_csv(output_dir / "parcel_response.csv", index=False)
     parcel_info.to_csv(output_dir / "parcel_info.csv", index=False)
     group_response.to_csv(output_dir / "group_response.csv", index=False)
-    pd.DataFrame({"group": list(YEO_ORDER)}).to_csv(output_dir / "yeo_order.csv", index=False)
-    pd.DataFrame({"group": list(SYSTEM_ORDER)}).to_csv(output_dir / "system_order.csv", index=False)
+    if not group_response.empty:
+        pd.DataFrame({"group": list(YEO_ORDER)}).to_csv(output_dir / "yeo_order.csv", index=False)
+        pd.DataFrame({"group": list(SYSTEM_ORDER)}).to_csv(output_dir / "system_order.csv", index=False)
 
 
 def _masks_on_image_grid(mask_dir: Path, reference: nib.spatialimages.SpatialImage) -> dict[str, np.ndarray]:
@@ -834,13 +1201,19 @@ def _masks_on_image_grid(mask_dir: Path, reference: nib.spatialimages.SpatialIma
 
 def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], lkng_paths: list[Path],
                                 volume_atlas: Path, dlabel_path: Path, system_mask_dir: Path,
-                                output_dir: Path) -> dict[str, int]:
+                                output_dir: Path,
+                                extra_masks: dict[str, nib.spatialimages.SpatialImage] | None = None,
+                                min_extra_voxels: int = 5,
+                                parcel_info_table: pd.DataFrame | None = None,
+                                include_groups: bool = True,
+                                extra_parcel_info: pd.DataFrame | None = None) -> dict[str, int]:
     """Parcel and system means from res_1stlevel effectSize volumes.
 
     Subject maps stay on their own grid. The Schaefer volume atlas is moved
     onto that grid once with nearest-neighbor interpolation, then each parcel
     mean uses the voxels that received its label. System means are the mean of
-    finite contrast voxels inside each mask.
+    finite contrast voxels inside each mask. extra_masks, when supplied, are
+    resampled once onto the same grid and averaged the same way.
     """
     if len(rpsl_paths) != len(metadata) or len(lkng_paths) != len(metadata):
         raise ValueError("Effect-size paths and the design must have one row per subject")
@@ -859,11 +1232,47 @@ def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], 
     present = flat_labels > 0
     roi_index = np.searchsorted(roi_ids, flat_labels[present])
     voxel_counts = np.bincount(roi_index, minlength=roi_ids.size).astype(float)
-    masks = _masks_on_image_grid(system_mask_dir, reference)
+    if include_groups:
+        masks = _masks_on_image_grid(system_mask_dir, reference)
+    else:
+        if parcel_info_table is None:
+            raise ValueError("Parcel-only volume analysis needs a parcel info table")
+        masks = {}
     flat_masks = {system: mask.ravel() for system, mask in masks.items()}
+    extra_flat: dict[str, np.ndarray] = {}
+    if extra_masks:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        mask_dir = output_dir / "amygdala_masks"
+        mask_dir.mkdir(parents=True, exist_ok=True)
+        for name, image in extra_masks.items():
+            resampled = _resample_to_atlas(
+                image, reference, "nearest", Path(name), 0.0, "effect-size grid")
+            mask = np.rint(np.asarray(resampled.get_fdata())).astype(np.int32) > 0
+            print(f"{name}: {int(mask.sum())} voxels on the effect-size grid")
+            nib.save(nib.Nifti1Image(mask.astype(np.uint8), reference.affine, reference.header),
+                     str(mask_dir / f"{name}.nii.gz"))
+            extra_flat[name] = mask.ravel()
+        count_rows = [{"roi": name, "n_voxels": int(extra_flat[name].sum())} for name in extra_masks]
+        pd.DataFrame(count_rows).to_csv(output_dir / "amygdala_voxel_counts.csv", index=False)
+        overlap = int(np.sum(np.vstack(list(extra_flat.values())).sum(axis=0) > 1))
+        if overlap:
+            raise ValueError(
+                f"{overlap} effect-size voxels belong to more than one amygdala ROI "
+                "after nearest-neighbor resampling"
+            )
+        small = [row for row in count_rows if row["n_voxels"] < min_extra_voxels]
+        if small:
+            preview = ", ".join(f"{row['roi']}={row['n_voxels']}" for row in small)
+            raise ValueError(
+                "Amygdala ROI voxel count is below "
+                f"{min_extra_voxels} after resampling onto the effect-size grid: {preview}"
+            )
     n_subjects = len(metadata)
     values = np.empty((n_subjects, roi_ids.size), dtype=np.float64)
     system_values = {system: np.empty(n_subjects, dtype=np.float64) for system in SYSTEM_ORDER}
+    extra_values = {
+        name: np.empty(n_subjects, dtype=np.float64) for name in extra_flat
+    }
     for subject_idx, (rpsl_path, lkng_path) in enumerate(zip(rpsl_paths, lkng_paths)):
         if subject_idx % 100 == 0:
             print(f"Volume contrast {subject_idx + 1} / {n_subjects}")
@@ -888,29 +1297,71 @@ def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], 
             if observed.size == 0:
                 raise ValueError(f"System mask {system} has no finite contrast voxels: {rpsl_path}")
             system_values[system][subject_idx] = float(np.mean(observed))
+        for name, flat_mask in extra_flat.items():
+            observed = delta[flat_mask]
+            observed = observed[np.isfinite(observed)]
+            if observed.size == 0:
+                raise ValueError(f"Amygdala ROI {name} has no finite contrast voxels: {rpsl_path}")
+            extra_values[name][subject_idx] = float(np.mean(observed))
     parcel_response = pd.DataFrame(values, columns=[str(int(parcel)) for parcel in roi_ids])
     parcel_response.insert(0, "sub_id", metadata["sub_id"].astype(str).to_numpy())
-    parcel_info = schaefer_parcel_info(dlabel_path)
-    missing_names = sorted(set(int(parcel) for parcel in roi_ids) - set(parcel_info["parcel"].astype(int)))
-    if missing_names:
-        raise ValueError(f"Volume parcel ids are absent from the Schaefer dlabel: {missing_names[:8]}")
-    parcel_info = parcel_info[parcel_info["parcel"].isin(roi_ids)].copy()
-    assignment, _overlap = parcel_overlap_on_mask_grid(atlas_img, volume_atlas, masks, reference)
-    parcel_info = parcel_info.merge(assignment, on="parcel", how="left")
-    parcel_info["system"] = parcel_info["system"].fillna("")
-    yeo_response = yeo_group_responses(parcel_response, parcel_info, voxel_counts, roi_ids)
-    subject_ids = metadata["sub_id"].astype(str).to_numpy()
-    system_rows = []
-    for system in SYSTEM_ORDER:
-        for sub_id, value in zip(subject_ids, system_values[system]):
-            system_rows.append({"sub_id": sub_id, "dimension": "system", "group": system, "y": float(value)})
-    group_response = pd.concat([yeo_response, pd.DataFrame(system_rows)], ignore_index=True)
+    if include_groups:
+        parcel_info = schaefer_parcel_info(dlabel_path)
+        missing_names = sorted(set(int(parcel) for parcel in roi_ids) - set(parcel_info["parcel"].astype(int)))
+        if extra_parcel_info is not None and missing_names:
+            extra = extra_parcel_info.copy()
+            extra["parcel"] = extra["parcel"].astype(int)
+            covered = set(extra["parcel"].astype(int))
+            still_missing = [parcel for parcel in missing_names if parcel not in covered]
+            if still_missing:
+                raise ValueError(
+                    "Volume parcel ids are absent from the Schaefer dlabel and the added parcel table: "
+                    f"{still_missing[:8]}"
+                )
+            overlap_ids = set(parcel_info["parcel"].astype(int)) & covered
+            if overlap_ids:
+                preview = ", ".join(str(parcel) for parcel in sorted(overlap_ids)[:8])
+                raise ValueError(f"Added parcel ids collide with Schaefer ids: {preview}")
+            if "network" not in extra.columns:
+                extra["network"] = ""
+            bad_network = sorted(set(extra["network"].fillna("").astype(str)) & set(YEO_ORDER))
+            if bad_network:
+                raise ValueError(f"Added parcel networks collide with Yeo 7: {bad_network}")
+            parcel_info = parcel_info.copy()
+            parcel_info["region_type"] = "cortical"
+            parcel_info["structure"] = ""
+            parcel_info["is_amygdala"] = False
+            extra_rows = extra[extra["parcel"].isin(missing_names)].copy()
+            parcel_info = pd.concat([parcel_info, extra_rows], ignore_index=True)
+        elif missing_names:
+            raise ValueError(f"Volume parcel ids are absent from the Schaefer dlabel: {missing_names[:8]}")
+        parcel_info = parcel_info[parcel_info["parcel"].isin(roi_ids)].copy()
+        assignment, _overlap = parcel_overlap_on_mask_grid(atlas_img, volume_atlas, masks, reference)
+        parcel_info = parcel_info.merge(assignment, on="parcel", how="left")
+        parcel_info["system"] = parcel_info["system"].fillna("")
+        yeo_response = yeo_group_responses(parcel_response, parcel_info, voxel_counts, roi_ids)
+        subject_ids = metadata["sub_id"].astype(str).to_numpy()
+        system_rows = []
+        for system in SYSTEM_ORDER:
+            for sub_id, value in zip(subject_ids, system_values[system]):
+                system_rows.append({"sub_id": sub_id, "dimension": "system", "group": system, "y": float(value)})
+        group_response = pd.concat([yeo_response, pd.DataFrame(system_rows)], ignore_index=True)
+    else:
+        parcel_info = _parcel_table_for_labels(parcel_info_table, roi_ids)
+        group_response = pd.DataFrame(columns=["sub_id", "dimension", "group", "y"])
     write_inputs(output_dir, metadata, parcel_response, parcel_info, group_response)
-    print(f"Volume parcel means use {roi_ids.size} Schaefer parcels on the effect-size grid.")
+    if extra_values:
+        amygdala_response = pd.DataFrame(extra_values)
+        amygdala_response.insert(0, "sub_id", metadata["sub_id"].astype(str).to_numpy())
+        amygdala_response.to_csv(output_dir / "amygdala_response.csv", index=False)
+        pd.DataFrame({"roi": list(extra_values)}).to_csv(output_dir / "amygdala_order.csv", index=False)
+    parcel_word = "parcels" if extra_parcel_info is not None else "Schaefer parcels"
+    print(f"Volume parcel means use {roi_ids.size} {parcel_word} on the effect-size grid.")
     return {
         "n_subjects": int(len(metadata)),
         "n_parcels": int(len(roi_ids)),
         "n_system_parcels": int((parcel_info["system"].astype(str) != "").sum()),
+        "n_amygdala": int(len(extra_values)),
         "input": "volume effectSize",
     }
 
