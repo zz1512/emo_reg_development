@@ -78,7 +78,7 @@ class WorkbenchBorderTests(unittest.TestCase):
         self.assertEqual(project.call_args.args[1], "nearest")
         return root / "maps" / "borders"
 
-    def test_fdr_and_manual_rois_remain_independent_and_workbench_reads_red_borders(self):
+    def test_fdr_and_manual_rois_remain_independent_and_workbench_reads_distinct_colors(self):
         with tempfile.TemporaryDirectory(prefix="fig03-borders-wb-") as temporary:
             output = self._write(Path(temporary), [156, 157])
             self.assertEqual(len(list(output.glob("*.border"))), 6)
@@ -97,12 +97,20 @@ class WorkbenchBorderTests(unittest.TestCase):
                 root = ET.parse(path).getroot()
                 self.assertEqual(root.get("Structure"), "CORTEX_LEFT" if "_lh." in path.name else "CORTEX_RIGHT")
                 self.assertEqual(int(root.get("SurfaceNumberOfVertices")), 32492)
+                expected_color = (0., 229. / 255., 1.) if path.name.startswith("marginal_") else (1., 0., 0.)
                 for element in (*root.findall("Class"), *root.findall(".//Border")):
-                    self.assertEqual(tuple(element.get(color) for color in ("Red", "Green", "Blue")), ("1", "0", "0"))
+                    np.testing.assert_allclose(
+                        [float(element.get(color)) for color in ("Red", "Green", "Blue")],
+                        expected_color, atol=1e-8, rtol=0)
                 result = subprocess.run([shutil.which("wb_command"), "-file-information", str(path)],
                                         check=True, capture_output=True, text=True)
                 self.assertIn("Border", result.stdout)
             manifest = json.loads((output / "border_manifest.json").read_text())
+            self.assertEqual(manifest["colors"], {"fdr_significant": "#FF0000", "manual_marginal": "#00E5FF"})
+            self.assertIn("Coloring = Class", manifest["workbench_display"])
+            for record in manifest["files"]:
+                expected_color = (0., 229. / 255., 1.) if record["border_file"].startswith("marginal_") else (1., 0., 0.)
+                np.testing.assert_allclose(record["color_rgb"], expected_color)
             empty = next(row for row in manifest["files"] if row["border_file"] == "marginal_156_157_fslr32k_rh.border")
             self.assertEqual(empty["border_parts"], 0)
             self.assertEqual(sum(empty["vertices_per_roi"].values()), 0)

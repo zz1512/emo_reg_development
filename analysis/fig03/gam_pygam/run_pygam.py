@@ -107,6 +107,7 @@ GRID_SIZE = 101
 COMPARISONS = ("m3_vs_m1", "m3_vs_m2")
 TIAN_INPUT_VERSION = 2
 AGE_EFFECT_DEFINITION = "m3_empirical_centered_age_v1"
+AGE_CI_DEFINITION = "m3_mean_inclusive_pointwise_v1"
 
 
 def resolve_project_path(path: Path) -> Path:
@@ -311,12 +312,16 @@ def _age_grid(age: np.ndarray) -> np.ndarray:
 def age_effect_on_residual_scale(model, y: np.ndarray, age: np.ndarray, covariates: np.ndarray,
                                  finite: np.ndarray, grid: np.ndarray,
                                  covariate_mean: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Centered m3 age effect, matching partial residuals, and pointwise CI.
+    """Centered m3 age effect, matching partial residuals, and mean-inclusive CI.
 
     The reference is the average m3 model-matrix row over the valid subjects'
     observed ages, with covariates held at their means. Contrasting against
-    that row removes the intercept and covariate contributions from both the
-    curve and its covariance. Points add this same age effect to m3 residuals.
+    that row removes the intercept and covariate contributions from the curve.
+    Points add this same age effect to m3 residuals. The CI uses the full
+    prediction covariance at mean covariates, retaining overall-mean
+    uncertainty, and is shifted by the fitted reference for display. It is
+    not the interval for the centered contrast alone. Cross-covariances
+    between the age effect and the overall mean are retained.
     The CI remains conditional on the GCV-selected smoothing parameter.
     """
     from scipy.stats import norm, t
@@ -338,11 +343,12 @@ def age_effect_on_residual_scale(model, y: np.ndarray, age: np.ndarray, covariat
     ])
     observed_basis = model._modelmat(observed_at_mean).toarray()
     reference = observed_basis.mean(axis=0)
-    contrast = model._modelmat(design).toarray() - reference
+    grid_basis = model._modelmat(design).toarray()
+    contrast = grid_basis - reference
     coefficients = np.asarray(model.coef_, dtype=float)
     covariance = np.asarray(model.statistics_["cov"], dtype=float)
     effect = contrast @ coefficients
-    variance = np.einsum("ij,jk,ik->i", contrast, covariance, contrast)
+    variance = np.einsum("ij,jk,ik->i", grid_basis, covariance, grid_basis)
     standard_error = np.sqrt(np.maximum(variance, 0.0))
     if model.distribution._known_scale:
         critical = float(norm.ppf(0.975))
@@ -674,12 +680,15 @@ def write_metadata(output_dir: Path, counts: dict) -> None:
         "curve": (
             "m3 age effect centered over each unit's valid observed ages, at mean covariates; "
             "points are m3 residuals plus that same centered age effect; "
-            "95% pointwise CI uses the model-matrix contrast and m3 coefficient covariance, "
+            "95% pointwise CI uses full m3 prediction covariance at mean covariates, "
+            "including overall-mean uncertainty, shifted by the fitted reference for display; "
+            "not a pure centered-contrast CI or an individual prediction interval; "
             "conditional on the selected smoothing parameter"
             if counts.get("tian_combined") else
             "covariates at their means; the 1% to 99% age-quantile curve is then mean-centered"
         ),
         "age_effect_definition": AGE_EFFECT_DEFINITION if counts.get("tian_combined") else None,
+        "age_ci_definition": AGE_CI_DEFINITION if counts.get("tian_combined") else None,
         "bh": ("within parcel" if counts.get("parcels_only") else
                "within parcel, within yeo, within system, and within Juelich amygdala")
               + "; separately for each comparison",
@@ -790,9 +799,10 @@ def rewrite_saved_curves(output_dir: Path) -> None:
             f"{output_dir} cannot redraw age curves. Missing: {', '.join(missing)}"
         )
     payload = json.loads(metadata_path.read_text(encoding="utf-8"))
-    if payload.get("age_effect_definition") != AGE_EFFECT_DEFINITION:
+    if (payload.get("age_effect_definition") != AGE_EFFECT_DEFINITION
+            or payload.get("age_ci_definition") != AGE_CI_DEFINITION):
         raise ValueError(
-            "Saved curves use the older m1-residual/shifted-CI definition. "
+            "Saved curves do not use the current centered-m3/mean-inclusive-CI definitions. "
             "Run --step fit on this output's saved inputs once before --step curves."
         )
     note = json.loads(note_path.read_text(encoding="utf-8"))

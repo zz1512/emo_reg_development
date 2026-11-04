@@ -1,11 +1,13 @@
 """Overview and zoom SVGs for each parcel, network, system, or Juelich ROI.
 
-The points are m3 residuals plus its centered age effect. The line and its 95%
-pointwise CI describe that same effect. Significant parcels and parcels 156/157 in
+The points are m3 residuals plus its centered age effect. The 95% pointwise CI
+retains overall-mean uncertainty and is shifted to the centered line for display.
+Significant parcels and parcels 156/157 in
 the 432 atlas use -1.5..1.5; all other units use -1..1. The plotting box has
 a 3:4 width-to-height ratio. Points outside the unit's range remain in the
 saved partial-residual table and are counted in the trajectory list. A separate
 zoom shows only the same curve and CI, with limits based on their actual range.
+Both views use explicit two-year age ticks and soft yellow bands without outlines.
 """
 
 from __future__ import annotations
@@ -23,7 +25,9 @@ import pandas as pd
 
 CURVE_COLOR = "#E5A000"
 BAND_COLOR = "#FFD45C"
+BAND_ALPHA = 0.4
 SCATTER_COLOR = "#666666"
+AGE_TICKS = (6, 8, 10, 12, 14, 16, 18)
 Y_LIMITS = (-1.0, 1.0)
 Y_LIMITS_432_SELECTED = (-1.5, 1.5)
 BOX_ASPECT = 4.0 / 3.0
@@ -43,10 +47,17 @@ def curve_style_metadata() -> dict:
         },
         "significant": "q_m3_vs_m1 < 0.05 or q_m3_vs_m2 < 0.05",
         "axes_width_to_height": "3:4",
+        "age_ticks": list(AGE_TICKS),
         "color": "bright gold",
+        "confidence_band": {
+            "fill_color": BAND_COLOR,
+            "fill_alpha": BAND_ALPHA,
+            "edge_color": "none",
+            "edge_width_pt": 0.0,
+        },
         "views": {
             "overview": "age_curves/<unit>.svg, m3 partial residuals and centered age curve",
-            "zoom": "age_curves_zoom/<unit>_zoom.svg, same curve and CI without scatter",
+            "zoom": "age_curves_zoom/<unit>_zoom.svg, same curve and CI without scatter, dashed zero reference",
         },
         "zoom_y_limits": "effect and CI envelope plus 15% of its span at each end",
     }
@@ -133,17 +144,20 @@ def plot_one_region(age: np.ndarray, residual: np.ndarray, curve_age: np.ndarray
     if band.any():
         axis.fill_between(
             curve_age[order], ci_low[order], ci_high[order],
-            color=BAND_COLOR, alpha=0.4, linewidth=0, zorder=2,
+            color=BAND_COLOR, alpha=BAND_ALPHA, linewidth=0, zorder=2,
         )
     finite_effect = np.isfinite(effect)
     if finite_effect.any():
         axis.plot(curve_age[order], effect[order], color=CURVE_COLOR, lw=1.8, zorder=3)
+    if not show_scatter:
+        axis.axhline(0, color="#777777", lw=0.7, linestyle="--", zorder=0)
     axis.set_ylim(*y_limits)
+    axis.set_xticks(AGE_TICKS, labels=[str(tick) for tick in AGE_TICKS])
     ages = np.concatenate([age[np.isfinite(age)], curve_age[np.isfinite(curve_age)]])
-    if ages.size:
-        xmin, xmax = float(ages.min()), float(ages.max())
-        padding = 0.05 * (xmax - xmin) if xmax > xmin else 0.5
-        axis.set_xlim(xmin - padding, xmax + padding)
+    xmin = min(float(ages.min()), AGE_TICKS[0]) if ages.size else AGE_TICKS[0]
+    xmax = max(float(ages.max()), AGE_TICKS[-1]) if ages.size else AGE_TICKS[-1]
+    padding = 0.05 * (xmax - xmin)
+    axis.set_xlim(xmin - padding, xmax + padding)
     axis.set_box_aspect(BOX_ASPECT)
     axis.set_title(title, fontsize=9)
     axis.set_xlabel("Age")
@@ -257,7 +271,7 @@ def write_region_curves(statistics: pd.DataFrame, curves: pd.DataFrame,
         effect = curve["effect"].to_numpy(dtype=float)
         ci_low = curve["ci_low"].to_numpy(dtype=float)
         ci_high = curve["ci_high"].to_numpy(dtype=float)
-        title = f"{label}\nq(m3-m1)={q_any}   q(m3-m2)={q_beyond}   95% CI"
+        title = f"{label}\nq(m3-m1)={q_any}   q(m3-m2)={q_beyond}\n95% CI (with mean)"
         plot_one_region(
             age, residual, curve_age, effect, ci_low, ci_high,
             title=title,

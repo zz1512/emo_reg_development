@@ -4,8 +4,8 @@ The volumes keep cortex and Tian subcortex. Each comparison's mask uses 1
 for its BH q < 0.05 and 2 for manually selected marginal parcels. Marginal
 labels take priority. File names identify the comparison and spatial domain.
 GIFTI metadata explicitly identifies the hemisphere for Workbench.
-Independent binary FDR ROIs and marginal-parcel ROIs produce red Workbench
-borders in maps/borders; the legacy two-class mask is not their source.
+Independent binary FDR ROIs and marginal-parcel ROIs produce red and bright
+cyan Workbench borders; the legacy two-class mask is not their source.
 """
 
 from __future__ import annotations
@@ -24,6 +24,8 @@ from nibabel.cifti2.cifti2_axes import BrainModelAxis, ScalarAxis
 
 MASK_SIGNIFICANT = 1
 MASK_MARGINAL = 2
+FDR_BORDER_RGB = (1.0, 0.0, 0.0)
+MARGINAL_BORDER_RGB = (0.0, 229.0 / 255.0, 1.0)
 SURFACE_DIR = Path(__file__).resolve().parents[3] / "resources" / "templates" / "fslr_32k"
 DEFAULT_BORDER_SURFACES = tuple(
     SURFACE_DIR / f"fsaverage.{hemi}.inflated.32k_fs_LR.surf.gii" for hemi in ("L", "R"))
@@ -169,16 +171,15 @@ def _border_surfaces(surfaces: tuple[Path, Path] | None) -> tuple[Path, Path]:
     return paths
 
 
-def _color_border_red(path: Path) -> int:
+def _color_border(path: Path, rgb: tuple[float, float, float]) -> int:
     """Set Workbench v3 name/class colors; drawing width belongs to the viewer."""
     tree = ET.parse(path)
     root = tree.getroot()
     if root.tag != "BorderFile" or root.get("Version") != "3":
         raise ValueError(f"{path}: expected a Workbench version 3 BorderFile")
     for element in (*root.findall("Class"), *root.findall(".//Border")):
-        element.set("Red", "1")
-        element.set("Green", "0")
-        element.set("Blue", "0")
+        for channel, value in zip(("Red", "Green", "Blue"), rgb):
+            element.set(channel, f"{value:.8g}")
     tree.write(path, encoding="utf-8", xml_declaration=True)
     return len(root.findall(".//BorderPart"))
 
@@ -206,11 +207,11 @@ def write_brain_borders(atlas_path: Path, statistics: pd.DataFrame, marginal: li
     for comparison, q_column, _ in comparisons:
         q = parcels[q_column].to_numpy(dtype=float)
         significant = set(parcel_ids[np.isfinite(q) & (q < 0.05)])
-        rois.append((f"fdr_significant_{comparison}", f"FDR_{comparison}",
+        rois.append((f"fdr_significant_{comparison}", f"FDR_{comparison}", FDR_BORDER_RGB,
                      [(f"FDR_q_lt_0.05_{comparison}", significant)]))
     if marginal_ids:
         suffix = "_".join(map(str, marginal_ids))
-        rois.append((f"marginal_{suffix}", f"Manual_marginal_{suffix}",
+        rois.append((f"marginal_{suffix}", f"Manual_marginal_{suffix}", MARGINAL_BORDER_RGB,
                      [(f"Manual_marginal_parcel_{parcel}", {parcel}) for parcel in marginal_ids]))
     atlas = nib.load(str(atlas_path))
     projected = tuple(_project_volume(atlas, "nearest"))
@@ -228,7 +229,7 @@ def write_brain_borders(atlas_path: Path, statistics: pd.DataFrame, marginal: li
     border_dir = output_dir / "borders"
     border_dir.mkdir(parents=True, exist_ok=True)
     records = []
-    for stem, class_name, columns in rois:
+    for stem, class_name, rgb, columns in rois:
         for hemi, surface, vertex_labels in zip(("lh", "rh"), surfaces, labels):
             metric = nib.GiftiImage()
             metric.meta["AnatomicalStructurePrimary"] = "CortexLeft" if hemi == "lh" else "CortexRight"
@@ -250,17 +251,18 @@ def write_brain_borders(atlas_path: Path, statistics: pd.DataFrame, marginal: li
                 subprocess.run(command, check=True, capture_output=True, text=True)
             except subprocess.CalledProcessError as exc:
                 raise RuntimeError(f"Workbench border conversion failed for {metric_path}: {exc.stderr or exc.stdout}") from exc
-            parts = _color_border_red(border_path)
+            parts = _color_border(border_path, rgb)
             records.append({"border_file": border_path.name, "roi_file": metric_path.name,
                             "hemisphere": hemi, "surface": str(surface.resolve()),
-                            "vertices_per_roi": counts, "border_parts": parts})
+                            "vertices_per_roi": counts, "border_parts": parts,
+                            "color_rgb": list(rgb)})
             print(f"Brain border: {border_path} ({parts} parts)")
     (border_dir / "border_manifest.json").write_text(json.dumps({
         "definition": "FDR borders use q < 0.05 directly, including any significant marginal parcel; manual marginal borders are independent annotations.",
         "source_atlas": str(atlas_path.resolve()),
         "projection": "nearest-neighbor parcel IDs, then binary membership; same MNI-to-fsLR32k mapping as the masks",
-        "color": "red (name and class colors)",
-        "workbench_display": "Display Borders; Polylines; Standard Color = Red; Line Diameter 2-3 px. Width is a viewer/scene setting.",
+        "colors": {"fdr_significant": "#FF0000", "manual_marginal": "#00E5FF"},
+        "workbench_display": "Display Borders; Polylines; Coloring = Class (or Name) to retain red FDR and bright cyan marginal colors; Line Diameter 2-3 px. Standard Color overrides both colors. Width is a viewer/scene setting.",
         "empty_rois": "A hemisphere with no ROI vertices produces a valid empty border file; see vertices_per_roi and border_parts.",
         "files": records,
     }, indent=2), encoding="utf-8")
@@ -316,7 +318,7 @@ def write_brain_maps(atlas_path: Path, statistics: pd.DataFrame, marginal: list[
             "GIFTI AnatomicalStructurePrimary: lh = CortexLeft; rh = CortexRight.",
             "Noncortical grayordinates in the dscalar stay 0; subcortical results remain in the volumes.",
             "Projection interpolation: partial_r2 = linear; significance_mask = nearest.",
-            "borders/ has independent binary FDR ROIs (q < 0.05 directly) and manual marginal ROIs, plus red .border files.",
+            "borders/ has independent binary FDR ROIs (q < 0.05 directly, red) and manual marginal ROIs (bright cyan), plus .border files.",
             "The combined 0/1/2 mask is not used as a binary border ROI; adjacent marginal parcels keep separate columns/borders.",
         ]) + "\n",
         encoding="utf-8",

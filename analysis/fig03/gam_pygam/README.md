@@ -71,33 +71,48 @@ python -m analysis.fig03.gam_pygam.run_pygam --meanfd-max 0.5 0.2 --input "/publ
 
 所有纳入绘图的单元各输出两张可编辑文字的SVG：固定纵轴的散点总览图，以及仅含同一曲线和95%置信区间的局部放大图。parcel取任一比较显著的并集，再加入Tian四杏仁核及432版的人工边缘156/157，同一parcel只入选一次。432另为全部7个网络、4个系统、6个Juelich杏仁核各输出这两张图；232仅画parcel。
 
-散点、曲线及置信区间统一采用m3的中心化年龄效应，不再混用m1残差与m3曲线。每个单元以有效被试的实际年龄分布为中心化参考，协变量固定在这些被试的均值处。设 `B(a, C均值)` 为m3设计矩阵的一行，`B均值` 为该单元有效被试年龄对应设计行的平均值，则：
+散点与年龄曲线继续采用m3的中心化年龄效应。95%置信带纳入总体均值的不确定性，再平移到中心化曲线所在位置。每个单元以有效被试的实际年龄分布为中心化参考，协变量固定在这些被试的均值处。设 `B(a, C均值)` 为m3设计矩阵的一行，`B均值` 为该单元有效被试年龄对应设计行的平均值，则：
 
 - 年龄曲线：`L(a) = B(a, C均值) - B均值`，`effect(a) = L(a) × beta_m3`。
 - 部分残差散点：`y_i - m3(age_i, C_i) + effect(age_i)`。
-- 95%点态置信区间：`effect(a) ± t(0.975, n-edf_m3) × sqrt(L(a) × Cov(beta_m3) × L(a)转置)`；已知误差尺度时使用正态分位数。
+- 95%点态置信区间：`effect(a) ± t(0.975, n-edf_m3) × sqrt(B(a, C均值) × Cov(beta_m3) × B(a, C均值)转置)`；已知误差尺度时使用正态分位数。
 
-这里包含了中心化参考与曲线之间的协方差，去除了共同截距和协变量基线的不确定性。参考来自实际被试年龄，不随绘图网格密度改变。该区间描述中心化平均年龄效应，仍以GCV选定的平滑参数为条件，未包含平滑参数选择的不确定性，也不是个体预测区间。即使散点很分散，区间仍可能很窄；接近线性的中心化曲线在平均年龄附近也可能明显收窄。不会为了图形效果放大区间数值。长表 `statistics/covariate_residuals.csv` 的列仍为 `sub_id, age, dimension, name, residual`，其中 `residual` 现在保存上述m3部分残差；Tian432/232的 `pygam_curves.csv` 中 `effect` 与 `centered_effect` 均保存同一中心化曲线。三个模型、比较检验、BH校正和partial R²的计算保持原有定义。
+这里用完整预测设计行计算方差，保留总体均值以及它与年龄效应之间的交叉协方差；没有直接给原方差加常数或乘放大倍数。等价于先计算协变量均值处的m3预测均值及其95%区间，再把曲线和上下界一起减去同一个拟合参考值 `B均值 × beta_m3`，该减法仅用于显示位置。因此这是**整体平移后的调整均值置信带，不是只针对中心化效应差值的区间**。这一做法与mgcv [`plot.gam(seWithMean=TRUE)`](https://stat.ethz.ch/R-manual/R-devel/library/mgcv/html/plot.gam.html)纳入总体均值不确定性的思路一致，仍使用pyGAM自身的协方差估计，不能视为与mgcv数值完全相同。
 
-总览图纵轴按以下规则固定，绘图区宽高比仍为3:4，曲线与置信带使用亮金色：
+中心化参考来自实际被试年龄，不随绘图网格密度改变。近似直线的曲线仍可在平均年龄附近经过零，但置信带不再因中心化约束而强制收成一点；数据支持很精确时区间仍可能较窄。该区间仍以GCV选定的平滑参数为条件，未包含平滑参数选择的不确定性；也不是个体预测区间或同时置信带，年龄效应是否显著以相应比较的FDR q值判断。图中标注 `95% CI (with mean)`。长表 `statistics/covariate_residuals.csv` 的列仍为 `sub_id, age, dimension, name, residual`，其中 `residual` 保存上述m3部分残差；Tian432/232的 `pygam_curves.csv` 中 `effect` 与 `centered_effect` 均保存同一中心化曲线。此次只更新区间定义与标注，三个模型、比较检验、BH校正、partial R²、中心化曲线和部分残差保持原有计算。
+
+总览图纵轴按以下规则固定，绘图区宽高比仍为3:4，曲线使用亮金色。总览图和同脑区放大图的横轴统一明确标注 `6、8、10、12、14、16、18` 岁，不再使用自动生成的7.5、12.5等刻度；横轴仍包含有效年龄范围，不会截掉18岁以上的已有数据或把曲线外推到无数据处。
+
+置信带恢复此前的浅黄色 `#FFD45C`，透明度为0.4，不画上下界描边；拟合曲线继续使用亮金色 `#E5A000`。绘图严格使用CSV中原有的 `ci_low`、`ci_high`，不改变95%区间的数值或置信水平。在固定 `[-1.5, 1.5]` 总览图上，均值区间仍可能相对散点分布较窄；细节应查看**同一个脑区**的 `_zoom.svg`，不宜比较两个不同脑区来判断区间宽度。置信区间描述均值估计的不确定性，不要求覆盖多数散点；个体预测区间属于另一个统计目标，不能混用名称。纵轴范围如下：
 
 | 绘图单元 | 纵轴范围 |
 |---|---|
 | 432版任一比较显著的parcel，以及156、157 | `[-1.5, 1.5]` |
 | 其余单元：432版仅因Tian杏仁核标注而绘制的非显著parcel、Yeo7、四系统、Juelich6，以及232版全部parcel | `[-1, 1]` |
 
-显著指 `q_m3_vs_m1 < 0.05` 或 `q_m3_vs_m2 < 0.05`。散点较淡，置信带位于散点之上；去掉0参考线、上边框及右边框。范围外的残差和曲线/置信区间保留在数据表中，清单的 `y_min`、`y_max` 记录总览图实际纵轴，`n_outside_y_limits` 按各图自身范围统计画面外的部分残差散点数。`statistics/trajectory_units.csv` 记录各类别绘图单元；`trajectory_parcels.csv` 仅记录parcel。清单保留两个比较的q值。
+显著指 `q_m3_vs_m1 < 0.05` 或 `q_m3_vs_m2 < 0.05`。散点较淡，置信带位于散点之上；总览图不画0参考线，两套图均去掉上边框及右边框。范围外的残差和曲线/置信区间保留在数据表中，清单的 `y_min`、`y_max` 记录总览图实际纵轴，`n_outside_y_limits` 按各图自身范围统计画面外的部分残差散点数。`statistics/trajectory_units.csv` 记录各类别绘图单元；`trajectory_parcels.csv` 仅记录parcel。清单保留两个比较的q值。
 
 总览图继续写入 `figures/age_curves/`，文件名保持不变，例如 `parcel_0154.svg`、`yeo_Vis.svg`、`system_reappraisal_only.svg`、`amygdala_Juelich_LB_L.svg`。放大图写入独立的 `figures/age_curves_zoom/`，对应文件名增加 `_zoom`，例如 `parcel_0154_zoom.svg`。放大图不叠加散点，使用与总览图完全相同的年龄曲线、CI和横轴范围；纵轴包含完整曲线和CI包络，并在两端各留出包络跨度的15%。极小或退化包络采用最小留白，避免相同上下限。放大图同样使用3:4绘图区；各单元纵轴会不同，跨单元比较效应幅度时应看总览图及数值表。清单增加 `zoom_figure_file`、`zoom_y_min`、`zoom_y_max` 以记录放大图文件及纵轴。
 
-统一m3绘图口径并增加放大图时需要本README、`run_pygam.py`、`plot_region_age.py`；当前版本还应同步 `brain_maps.py`，以支持下文新增的边界导出。**首次升级绘图口径必须从现有均值重新拟合一次**，旧CSV未保存重算部分残差和中心化CI所需的模型信息，不能仅重画。在工程根目录、`er-manuscript` 环境执行下面两条命令，不重读原始被试effectSize；它们会更新现有结果目录内的统计表、两套曲线图及后续脑图和边界：
+查看曲线细节时，使用同一单元的 `_zoom.svg`：浅黄色置信带显示真实区间，细灰色零参考虚线帮助定位中心化效应的零点。参考截图为两组轨迹的一阶导数图，而这里显示中心化年龄效应；二者纵轴含义不同。区间宽度由本项目数据估计决定，统计显著性以相应FDR q值判断。
+
+本次纳入总体均值不确定性的置信带更新，需要将工程中的 `analysis/fig03/gam_pygam/run_pygam.py`、`analysis/fig03/gam_pygam/plot_region_age.py` 和本README替换到云端同一位置；`test_models.py` 是本地验证文件，无需上传。此前的 `brain_maps.py` 更新继续用于半球信息及双色边界，尚未同步时也需替换该文件。**首次升级区间定义必须从现有均值重新拟合一次**，旧CSV未保存重算新区间所需的模型协方差，不能仅重画。在工程根目录、`er-manuscript` 环境执行下面命令，不重读原始被试effectSize；它们会更新现有结果目录内的统计表、两套曲线图及后续脑图和边界：
 
 ```bash
+conda activate er-manuscript
 python -m analysis.fig03.gam_pygam.run_pygam --step fit --schaefer-atlas "resources/atlases/schaefer2018/Schaefer2018_400Parcels_7Networks_order.dlabel.nii" --output "outputs/fig03/gam_pygam_volume_432_models3_FD05"
 python -m analysis.fig03.gam_pygam.run_pygam --step fit --schaefer-atlas "resources/atlases/schaefer2018/Schaefer2018_200Parcels_7Networks_order.dlabel.nii" --output "outputs/fig03/gam_pygam_volume_232_models3_FD05"
 ```
 
-这两条命令沿用目标目录已经完成的FD0.5样本筛选。升级后的 `run_metadata.json` 含 `age_effect_definition: m3_empirical_centered_age_v1`。之后只调整样式可运行 `--step curves --output "..._FD05"`，同时重画两套图并刷新metadata中的绘图样式，保留原统计信息。未带此版本标记的旧结果会明确提示先执行fit，防止把旧残差和旧区间当成新版结果。
+这两条命令沿用目标目录已经完成的FD0.5样本筛选，勿同时追加 `--meanfd-max 0.5`，否则会再次拼接目录后缀。其他结果版本需把 `--output` 换成其实际目录，并使用匹配的400或200 dlabel。升级后的 `run_metadata.json` 保留 `age_effect_definition: m3_empirical_centered_age_v1`，新增 `age_ci_definition: m3_mean_inclusive_pointwise_v1`。之后只调整样式可运行 `--step curves --output "..._FD05"`，同时重画两套图并刷新metadata中的绘图样式，保留原统计信息。缺少任一标记或版本不符时明确提示先执行fit，包括已经采用中心化曲线、但仍保存旧差值CI的结果；不要手动补metadata来跳过重算。
+
+**本次恢复浅黄色置信带的更新**仅需替换 `analysis/fig03/gam_pygam/plot_region_age.py` 和本README，保留明确显示18岁的横轴刻度、既有放大图及其中的零参考虚线。如果已经完成上述新版CI的fit（图中显示 `95% CI (with mean)`，且metadata有上述区间版本），在云端工程根目录执行下面命令即可从原CSV重画总览图及放大图，无需重新拟合或读取原始影像。重画后metadata的 `tian_curve_style` 会记录横轴刻度、浅黄色、0.4透明度和无描边设置。
+
+```bash
+conda activate er-manuscript
+python -m analysis.fig03.gam_pygam.run_pygam --step curves --output "outputs/fig03/gam_pygam_volume_432_models3_FD05"
+python -m analysis.fig03.gam_pygam.run_pygam --step curves --output "outputs/fig03/gam_pygam_volume_232_models3_FD05"
+```
 
 脑图按两种比较分别输出，在 `maps/` 下保存全脑partial R²和显著mask：
 
@@ -131,7 +146,7 @@ for maps_dir in outputs/fig03/gam_pygam_volume_432_models3_FD05/maps outputs/fig
 done
 ```
 
-### 独立FDR边界与156/157红框
+### 独立FDR边界与156/157双色边框
 
 当前Tian方案的全量运行、fit和maps步骤会自动调用Workbench的 [`-metric-rois-to-border`](https://www.humanconnectome.org/software/workbench-command/-metric-rois-to-border)，在 `maps/borders/` 输出独立ROI及 `.border`。已有统计结果只补边界时，可在工程根目录直接执行，无需重新拟合、重提取被试均值或重写partial R²图：
 
@@ -145,11 +160,11 @@ python -m analysis.fig03.gam_pygam.run_pygam --step borders --output "outputs/fi
 
 | `maps/borders/` 中的文件 | 内容 |
 |---|---|
-| `fdr_significant_m3_vs_m1_fslr32k_lh.border`、`_rh.border` | m3对m1的FDR边界 |
-| `fdr_significant_m3_vs_m2_fslr32k_lh.border`、`_rh.border` | m3对m2的FDR边界 |
-| `marginal_156_157_fslr32k_lh.border`、`_rh.border` | 仅432版，156与157各有独立名称及轮廓，存于一份文件 |
+| `fdr_significant_m3_vs_m1_fslr32k_lh.border`、`_rh.border` | m3对m1的FDR边界，红色 `#FF0000` |
+| `fdr_significant_m3_vs_m2_fslr32k_lh.border`、`_rh.border` | m3对m2的FDR边界，红色 `#FF0000` |
+| `marginal_156_157_fslr32k_lh.border`、`_rh.border` | 仅432版，156与157各有独立名称及轮廓，亮青色 `#00E5FF`，存于一份文件 |
 | 同名 `.func.gii` | 边界的二值ROI来源；FDR文件1列，156/157文件2列，每列独立0/1 |
-| `border_manifest.json` | 文件、半球、使用的surface、每个ROI顶点数及边界段数 |
+| `border_manifest.json` | 文件、半球、使用的surface、每个ROI顶点数、边界段数及颜色 |
 
 432版共6份 `.border`，232版只有两个比较×左右半球的4份，不添加156/157。某半球没有相应ROI时仍输出带半球信息的有效空边界，清单中的顶点数及边界段数为0；空文件不代表转换失败。`.border`用于皮层表面显示，Tian皮下区结果仍在volume中查看。
 
@@ -157,23 +172,53 @@ python -m analysis.fig03.gam_pygam.run_pygam --step borders --output "outputs/fi
 
 若云端资源目录没有这两份surface，将工程中的对应文件复制到相同位置。Workbench需在PATH中；否则在命令后追加 `--wb-command "/实际路径/wb_command"`。已有匹配的midthickness时可追加 `--border-surfaces "/实际路径/L.midthickness.surf.gii" "/实际路径/R.midthickness.surf.gii"`，顺序固定为左、右。缺少Workbench或网格不匹配会明确报错。
 
-输出文件的Name和Class颜色均设为红色。加载partial R²图作为底图，再加载所需FDR及156/157 `.border`；在Workbench的 **Features Toolbox → Borders → Attributes** 设置 **Display Borders**、**Draw As = Polylines**、**Coloring = Standard Color**、**Standard Color = Red**，**Line Diameter先设2–3 px**。显示开关、绘制方式及线宽由Workbench界面/scene保存，`.border`本身不固定这些设置；Name/Class着色时文件内的颜色也为红色。相关控件见[Workbench官方界面实现](https://github.com/Washington-University/workbench/blob/master/src/GuiQt/BorderSelectionViewController.cxx)。FDR和人工边界可以独立加载及显隐；partial R²底图保持连续颜色，不用显著性ROI替换。
+输出文件同时写入Name和Class颜色：FDR红色，156/157亮青色。重新导出后，在Workbench中移除旧版边界并加载新版，避免同名旧文件或scene中的旧颜色继续显示。进入 **Features Toolbox → Borders → Attributes**，勾选 **Display Borders**，选择 **Draw As = Polylines**、**Coloring = Class**（Name也可），**Line Diameter先设2 px**。此前的 **Standard Color = Red** 是统一着色，会覆盖两类文件内的颜色，双色显示时应切换为Class。显示开关、绘制方式及线宽由Workbench界面/scene保存，`.border`本身不固定这些设置。Class/Name/Standard Color选项见[官方枚举定义](https://github.com/Washington-University/workbench/blob/master/src/Brain/FeatureColoringTypeEnum.cxx)，其他控件见[官方界面实现](https://github.com/Washington-University/workbench/blob/master/src/GuiQt/BorderSelectionViewController.cxx)。
+
+在 **Borders → Selection** 中，与当前partial R²图对应的一个比较的FDR边界及人工边界配套显示：看m3对m1时选择 `FDR_m3_vs_m1` 和 `Manual_marginal_156_157`，看m3对m2时切换为其FDR类。可以分别取消勾选，确认红色轮廓和青色轮廓各自覆盖哪里；两类轮廓之间的区域不因被围住而变成显著。156与157各自保留边界，不生成包围它们的凸包。填色显示partial R²，不叠加0/1/2显著性mask或二值ROI作为实体填色层，以免遮挡连续效应图。
+
+### Workbench配色：匹配参考论文图d
+
+用户提供的参考图d显示全皮层partial R²及FDR边框，色标下限为 **0**、上限为 **0.03**；红色 **0.01** 位于色条内部，不是下限。其额外标记的统计含义应以原图注为准；当前显著性始终使用相应比较的FDR `q < 0.05`，不能用统一 `partial R² > 0.01` 替代。截图呈黑紫、粉红橙到浅黄的单向渐变，以下用Workbench内置 **magma** 作近似匹配；仅凭截图不能唯一确定原始色表或保证逐像素相同，表面光照及导出设置也会影响观感。
+
+1. 在 **File → Open File** 加载同网格的左右inflated surface，优先使用前述 `fsaverage.L/R.inflated.32k_fs_LR.surf.gii`。加载目标比较的 `partial_r2_m3_vs_m1_fslr32k.dscalar.nii`；若使用左右 `.func.gii`，后续分别设置两侧。显示当前比较对应的边界；论文式四视图使用左右半球的lateral和medial视角。
+2. 在 **Overlay Toolbox** 关闭所有显著性mask、二值ROI及其他统计图的填色，仅保留当前partial R²层，**Opacity设为1.00**。边界通过Features Toolbox显示，无需在Overlay中启用它的二值ROI。
+3. 点击该partial R²图层旁的**扳手**，进入 **Overlay and Map Settings → Palette**。选择 **Palette = magma**，勾选 **Interpolate Colors**，**Invert = Off/None**。这是颜色插值，不是对数值图做空间平滑。
+4. 在 **Color Mapping** 选择 **Fixed**（部分版本称User），将**正值Positive的最小值设0、最大值设0.03**。不要选择Full、Percent或Abs Pct来自动拉伸左右半球的颜色范围。
+5. 在显示选项中勾选 **Positive**，取消 **Negative**，取消 **Zero**。在 **Threshold → Source** 选择 **Off**，保持全皮层效应填色。无数据的medial wall显示灰色表面；不把0.01设成数据阈值。
+6. 两侧 `.func.gii` 都使用相同magma、0–0.03和Opacity；若使用一个包含左右皮层的 `.dscalar.nii`，同一个map的Palette同时用于两侧。两种比较及432/232之间如要比较颜色，也使用一致的范围，并在图注说明。
+7. 在图层行点击**色条图标**显示color bar，确认标注为0–0.03，名称为partial R²。参考图红色0.01若需复现，可作为文字/刻度注释添加；它不应改变Palette范围或Threshold。
+8. 按前节设置红色FDR和青色156/157边界，先用2 px检查，必要时增到3 px。相邻边框太粗会覆盖小脑区，判断范围时可临时隐藏青色类，再单独核对红色FDR轮廓。
+9. 用 **File → Save/Manage Files** 保存需要持久化的map配色；打开工具栏的 **Scenes（场记板图标）**，在场景对话框保存视角、边框显示与线宽等显示状态。重新打开scene时检查是否恢复了旧版边界。
+
+界面按钮及Palette控件分别见[Overlay官方实现](https://github.com/Washington-University/workbench/blob/master/src/GuiQt/OverlayViewController.cxx)和[Palette官方实现](https://github.com/Washington-University/workbench/blob/master/src/GuiQt/MapSettingsPaletteColorMappingWidget.cxx)；Workbench的magma来自Matplotlib色表，见[官方色表定义](https://github.com/Washington-University/workbench/blob/master/src/Files/PaletteFile.cxx)。更换色表、固定范围和Opacity只改变显示，不会改变统计值。固定上限0.03会使更大数值显示同一最亮颜色，图注应说明饱和上限；432新版的数据和模型与论文旧结果不同时，色块分布也不会因换配色而完全一致。
+
+可选：用官方命令固定现有GIFTI的显示参数。下面循环就地修改两种比较的左右partial R² GIFTI的Palette metadata，不修改数据值；需在工程根目录Bash执行，文件不存在时跳过：
+
+```bash
+for result_dir in outputs/fig03/gam_pygam_volume_432_models3_FD05 outputs/fig03/gam_pygam_volume_232_models3_FD05; do
+  for metric in "$result_dir"/maps/partial_r2_m3_vs_m*_fslr32k_?h.func.gii; do
+    [ -f "$metric" ] || continue
+    wb_command -metric-palette "$metric" MODE_USER_SCALE -pos-user 0 0.03 -palette-name magma -interpolate true -inversion OFF -disp-pos true -disp-neg false -disp-zero false -thresholding THRESHOLD_TYPE_OFF THRESHOLD_TEST_SHOW_INSIDE 0 1
+  done
+done
+```
+
+该循环只设置GIFTI，不会把设置自动传给另存的CIFTI。Workbench中若显示的是 `.dscalar.nii`，按上面的GUI步骤设置该文件，或用 [`-cifti-palette`](https://www.humanconnectome.org/software/workbench-command/-cifti-palette) 输出另一个文件；CIFTI命令要求输入、输出文件不同。GIFTI命令详见 [`-metric-palette`](https://www.humanconnectome.org/software/workbench-command/-metric-palette)。重新执行maps/fit会重新生成地图，届时需重新应用所需的显示配色。
 
 ### 云端需替换的文件
 
-每次修改分析脚本时同步本README、可运行命令及替换清单。本次独立红框/border更新，只需将以下三个文件同步到服务器工程相同相对位置：
+每次修改分析脚本时同步本README、可运行命令及替换清单。本次FDR红色/156与157亮青色更新，只需将以下两个文件同步到服务器工程相同相对位置，再执行前述 `--step borders` 命令：
 
 - `analysis/fig03/gam_pygam/README.md`
-- `analysis/fig03/gam_pygam/run_pygam.py`
 - `analysis/fig03/gam_pygam/brain_maps.py`
 
-若服务器尚未同步此前的m3部分残差/CI和两套随龄图更新，还需同步 `analysis/fig03/gam_pygam/plot_region_age.py`。此前三模型、四家族的提取修复另涉及 `analysis/fig03/gam_supplement/prepare_inputs.py`；已同步则无需再次替换。
+若服务器尚未同步此前新增borders命令的版本，还需同步 `analysis/fig03/gam_pygam/run_pygam.py`；此前m3部分残差/CI和两套随龄图更新涉及 `plot_region_age.py`，三模型、四家族的提取修复涉及 `analysis/fig03/gam_supplement/prepare_inputs.py`。已同步则无需再次替换。
 
 默认使用前述两份工程已有的fsLR32k surface，不额外生成或打包模板。
 
 继续依赖工程已有的 `tian_combined.py`、`gam_nested/amygdala.py` 和 `src/prj_analysis/src/mylib/stat/stats.py`。在含 `analysis/` 的工程根目录、`er-manuscript` 环境执行下列命令。
 
-本地回归测试另见 `analysis/fig03/gam_pygam/test_models.py`、`test_borders.py`，不参与云端分析；如需运行，使用含pyGAM的环境执行 `python -m unittest analysis.fig03.gam_pygam.test_models analysis.fig03.gam_pygam.test_borders -v`。边界集成测试实际调用Workbench生成并回读红色边界；未安装Workbench时跳过这些集成项。
+本地回归测试另见 `analysis/fig03/gam_pygam/test_models.py`、`test_borders.py`，不参与云端分析；如需运行，使用含pyGAM的环境执行 `python -m unittest analysis.fig03.gam_pygam.test_models analysis.fig03.gam_pygam.test_borders -v`。边界集成测试实际调用Workbench生成并回读双色边界，同时检查两类ROI及颜色保持独立；未安装Workbench时跳过这些集成项。
 
 下文直接给出432/232的完整全量命令；需要指定独立Juelich图谱时，可在432命令后追加 `--juelich-atlas ... --juelich-labels ...`。已有完整均值时，本次采用前述fit升级命令；完成升级后才可只重画。半球标记可用前述补标记命令单独修复。
 
@@ -207,14 +252,14 @@ python -m analysis.fig03.gam_pygam.run_pygam --reuse-inputs "outputs/fig03/gam_p
 
 ### 拟合及绘图恢复命令
 
-`--step fit` 从目标输出中的完整均值重新拟合三个模型并更新后续图，不重读被试effectSize。输入仅有旧两模型统计，或绘图仍使用旧的m1残差/平移CI定义时，应先运行fit生成新比较和曲线表。432需已有完整的Yeo7、四系统及Juelich6输入，否则使用全量命令。
+`--step fit` 从目标输出中的完整均值重新拟合三个模型并更新后续图，不重读被试effectSize。输入仅有旧两模型统计、绘图仍使用旧m1残差，或区间仍为不包含总体均值不确定性的中心化差值CI时，应先运行fit生成新版比较和曲线表。432需已有完整的Yeo7、四系统及Juelich6输入，否则使用全量命令。
 
 ```bash
 python -m analysis.fig03.gam_pygam.run_pygam --step fit --meanfd-max 0.5 --schaefer-atlas "resources/atlases/schaefer2018/Schaefer2018_400Parcels_7Networks_order.dlabel.nii" --output "outputs/fig03/gam_pygam_volume_432_models3"
 python -m analysis.fig03.gam_pygam.run_pygam --step fit --meanfd-max 0.5 --schaefer-atlas "resources/atlases/schaefer2018/Schaefer2018_200Parcels_7Networks_order.dlabel.nii" --output "outputs/fig03/gam_pygam_volume_232_models3"
 ```
 
-已有本次fit生成的 `pygam_age_comparison.csv`、`pygam_curves.csv`、长格式 `covariate_residuals.csv`，且 `run_metadata.json` 中的 `age_effect_definition` 为 `m3_empirical_centered_age_v1` 时，`--step curves` 只重画总览图及放大图：
+已有本次fit生成的 `pygam_age_comparison.csv`、`pygam_curves.csv`、长格式 `covariate_residuals.csv`，且 `run_metadata.json` 中的 `age_effect_definition` 为 `m3_empirical_centered_age_v1`、`age_ci_definition` 为 `m3_mean_inclusive_pointwise_v1` 时，`--step curves` 只重画总览图及放大图：
 
 ```bash
 python -m analysis.fig03.gam_pygam.run_pygam --step curves --meanfd-max 0.5 --output "outputs/fig03/gam_pygam_volume_432_models3"

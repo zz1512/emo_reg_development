@@ -207,7 +207,7 @@ class ThreeModelStatisticsTests(unittest.TestCase):
         grid_design = np.column_stack([self.grid, np.tile(mean_covariates, (len(self.grid), 1))])
         original_coefficients = model.coef_.copy()
         original_covariance = model.statistics_["cov"].copy()
-        effect, _, _, points = runner.age_effect_on_residual_scale(
+        effect, low, high, points = runner.age_effect_on_residual_scale(
             model, y, self.age, covariates, np.ones(len(y), dtype=bool), self.grid, mean_covariates)
         np.testing.assert_array_equal(model.coef_, original_coefficients)
         np.testing.assert_array_equal(model.statistics_["cov"], original_covariance)
@@ -219,6 +219,12 @@ class ThreeModelStatisticsTests(unittest.TestCase):
         np.testing.assert_allclose(points, full_residual + expected_age, atol=1e-10)
         np.testing.assert_allclose(effect, model.partial_dependence(term=0, X=grid_design)
                                    - observed_term.mean(), atol=1e-10)
+        # Independent pyGAM API oracle: translate the entire prediction CI
+        # by the fitted reference; keep its width and all cross-covariances.
+        fitted_reference = float(model.predict(observed).mean())
+        expected_ci = model.confidence_intervals(grid_design, width=0.95) - fitted_reference
+        np.testing.assert_allclose(low, expected_ci[:, 0], atol=1e-9)
+        np.testing.assert_allclose(high, expected_ci[:, 1], atol=1e-9)
         self.assertAlmostEqual(float((points - full_residual).mean()), 0, places=10)
         no_age = np.column_stack([np.ones(len(y)), covariates])
         old_residual = y - no_age @ np.linalg.lstsq(no_age, y, rcond=None)[0]
@@ -226,30 +232,41 @@ class ThreeModelStatisticsTests(unittest.TestCase):
 
 
 class CenteredAgeIntervalTests(unittest.TestCase):
-    def test_linear_effect_ci_removes_shared_baseline_uncertainty(self):
-        # In this simple model the exact contrast is beta_age * (age-mean_age).
-        # A large intercept/covariate variance must cancel, rather than being
-        # retained by shifting an ordinary full-prediction interval.
+    def test_linear_effect_ci_retains_mean_uncertainty_and_cross_covariances(self):
+        # Exact linear oracle in a basis centered at mean age. The curve is
+        # beta_age * (age-mean_age), but its displayed CI retains the baseline.
         age = np.array([6., 8., 10., 12., 14., 16., 18.])
-        covariates = np.column_stack([np.linspace(-2, 2, len(age))])
-        coefficients = np.array([10., .1, .5])
+        covariates = np.column_stack([1.5 + np.linspace(-2, 2, len(age))])
+        coefficients = np.array([.4, .005, .2])
         model = SimpleNamespace(
             coef_=coefficients,
-            statistics_={"edof": 3., "cov": np.diag([100., .01, 50.])},
+            statistics_={"edof": 3., "cov": np.array([
+                [.0025, -.0001, .0002],
+                [-.0001, .0004, .00005],
+                [.0002, .00005, .001],
+            ])},
             distribution=SimpleNamespace(_known_scale=False),
-            _modelmat=lambda design: csr_matrix(np.column_stack([np.ones(len(design)), design])),
-            predict=lambda design: np.column_stack([np.ones(len(design)), design]) @ coefficients,
+            _modelmat=lambda design: csr_matrix(np.column_stack([
+                np.ones(len(design)), design[:, 0] - age.mean(), design[:, 1]])),
+            predict=lambda design: np.column_stack([
+                np.ones(len(design)), design[:, 0] - age.mean(), design[:, 1]]) @ coefficients,
         )
         y = model.predict(np.column_stack([age, covariates])) + np.array([.1, -.1, 0, 0, 0, -.1, .1])
         grid = np.array([6., 12., 18.])
         effect, low, high, points = runner.age_effect_on_residual_scale(
             model, y, age, covariates, np.ones(len(y), dtype=bool), grid, covariates.mean(axis=0))
-        expected = .1 * (grid - age.mean())
-        half_width = t.ppf(.975, len(y) - 3) * .1 * np.abs(grid - age.mean())
+        x = grid - age.mean()
+        expected = .005 * x
+        # Var(intercept + beta_age*x + beta_covariate*1.5), expanded by hand.
+        variance = (.0025 + .0004 * x ** 2 + .001 * 1.5 ** 2
+                    - 2 * .0001 * x + 2 * .0002 * 1.5 + 2 * .00005 * x * 1.5)
+        half_width = t.ppf(.975, len(y) - 3) * np.sqrt(variance)
         np.testing.assert_allclose(effect, expected, atol=1e-12)
         np.testing.assert_allclose(low, expected - half_width, atol=1e-12)
         np.testing.assert_allclose(high, expected + half_width, atol=1e-12)
-        self.assertAlmostEqual(low[1], high[1], places=12)
+        self.assertLess(low[1], 0)
+        self.assertGreater(high[1], 0)
+        self.assertGreater(high[1] - low[1], 0.1)
         # Changing the intercept shifts y but leaves centered curves, points,
         # and their interval untouched.
         model.coef_[0] += 100
@@ -408,6 +425,9 @@ class PipelineOutputTests(unittest.TestCase):
                     self.assertEqual(metadata["counts"]["n_subjects"], 15)
                     self.assertEqual(metadata["counts"]["meanfd_max"], 0.5)
                     self.assertEqual(metadata["age_effect_definition"], runner.AGE_EFFECT_DEFINITION)
+                    self.assertEqual(metadata["age_ci_definition"], runner.AGE_CI_DEFINITION)
+                    for filename in units["zoom_figure_file"]:
+                        self.assertIn("95% CI (with mean)", (destination / "figures" / filename).read_text())
                     self.assertEqual(before, {path.name: path.read_bytes() for path in source.iterdir()})
                     for comparison in runner.COMPARISONS:
                         mapped = nib.load(str(destination / "maps" / f"partial_r2_{comparison}_volume_MNI152.nii.gz"))
@@ -443,10 +463,14 @@ class PipelineOutputTests(unittest.TestCase):
             (output / "statistics").mkdir()
             for name in ("pygam_age_comparison.csv", "pygam_curves.csv", "covariate_residuals.csv"):
                 (output / "statistics" / name).write_text("old-data-sentinel", encoding="utf-8")
-            (output / "run_metadata.json").write_text("{}", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "Run --step fit"):
-                runner.rewrite_saved_curves(output)
-            self.assertFalse((output / "figures").exists())
+            for metadata in ({}, {"age_effect_definition": runner.AGE_EFFECT_DEFINITION},
+                             {"age_effect_definition": runner.AGE_EFFECT_DEFINITION,
+                              "age_ci_definition": "m3_contrast_pointwise_v0"}):
+                with self.subTest(metadata=metadata):
+                    (output / "run_metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, "Run --step fit"):
+                        runner.rewrite_saved_curves(output)
+                    self.assertFalse((output / "figures").exists())
 
 
 if __name__ == "__main__":
