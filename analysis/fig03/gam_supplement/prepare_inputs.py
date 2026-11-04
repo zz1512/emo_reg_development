@@ -1213,7 +1213,8 @@ def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], 
     onto that grid once with nearest-neighbor interpolation, then each parcel
     mean uses the voxels that received its label. System means are the mean of
     finite contrast voxels inside each mask. extra_masks, when supplied, are
-    resampled once onto the same grid and averaged the same way.
+    resampled once onto the same grid and averaged the same way. Added parcel
+    metadata is retained when include_groups disables network and system means.
     """
     if len(rpsl_paths) != len(metadata) or len(lkng_paths) != len(metadata):
         raise ValueError("Effect-size paths and the design must have one row per subject")
@@ -1235,7 +1236,7 @@ def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], 
     if include_groups:
         masks = _masks_on_image_grid(system_mask_dir, reference)
     else:
-        if parcel_info_table is None:
+        if parcel_info_table is None and extra_parcel_info is None:
             raise ValueError("Parcel-only volume analysis needs a parcel info table")
         masks = {}
     flat_masks = {system: mask.ravel() for system, mask in masks.items()}
@@ -1305,7 +1306,7 @@ def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], 
             extra_values[name][subject_idx] = float(np.mean(observed))
     parcel_response = pd.DataFrame(values, columns=[str(int(parcel)) for parcel in roi_ids])
     parcel_response.insert(0, "sub_id", metadata["sub_id"].astype(str).to_numpy())
-    if include_groups:
+    if include_groups or extra_parcel_info is not None:
         parcel_info = schaefer_parcel_info(dlabel_path)
         missing_names = sorted(set(int(parcel) for parcel in roi_ids) - set(parcel_info["parcel"].astype(int)))
         if extra_parcel_info is not None and missing_names:
@@ -1336,6 +1337,9 @@ def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], 
         elif missing_names:
             raise ValueError(f"Volume parcel ids are absent from the Schaefer dlabel: {missing_names[:8]}")
         parcel_info = parcel_info[parcel_info["parcel"].isin(roi_ids)].copy()
+    else:
+        parcel_info = _parcel_table_for_labels(parcel_info_table, roi_ids)
+    if include_groups:
         assignment, _overlap = parcel_overlap_on_mask_grid(atlas_img, volume_atlas, masks, reference)
         parcel_info = parcel_info.merge(assignment, on="parcel", how="left")
         parcel_info["system"] = parcel_info["system"].fillna("")
@@ -1347,7 +1351,7 @@ def prepare_from_effect_volumes(metadata: pd.DataFrame, rpsl_paths: list[Path], 
                 system_rows.append({"sub_id": sub_id, "dimension": "system", "group": system, "y": float(value)})
         group_response = pd.concat([yeo_response, pd.DataFrame(system_rows)], ignore_index=True)
     else:
-        parcel_info = _parcel_table_for_labels(parcel_info_table, roi_ids)
+        parcel_info["system"] = ""
         group_response = pd.DataFrame(columns=["sub_id", "dimension", "group", "y"])
     write_inputs(output_dir, metadata, parcel_response, parcel_info, group_response)
     if extra_values:

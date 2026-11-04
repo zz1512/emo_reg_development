@@ -2,10 +2,12 @@
 
 The full model is intercept + s(age) + gender + site_id + parent_edu + meanFD.
 s(age) is a penalized B-spline with n_splines=5. The smoothing parameter is
-chosen by GCV on 12 values from 1e-5 to 1e5. The reduced model is intercept
-plus the same four covariates and is nested in the full model. p_age is the
-nested F test of that pair. It asks whether the age smooth reduces residual
-error, and it does not separate a straight line from a bend.
+chosen by GCV on 12 values from 1e-5 to 1e5. m1 is intercept plus the four
+covariates; m2 also includes unpenalized linear age; m3 is the full GAM.
+m3 versus m1 retains the historical approximate RSS/EDF F test. The m3 versus
+m2 nonlinearity test uses an unpenalized reference fit of the same fixed spline
+basis, avoiding a vanishing EDF difference when the GAM is nearly linear.
+p_age remains an alias of p_m3_vs_m1 for older consumers.
 
 Subject volumes stay on their own grid. The Schaefer atlas is nearest-neighbor
 labeled onto that grid once. This command does not run the vertex GLM in
@@ -44,10 +46,10 @@ Figures are SVG with editable text.
 
     python -m analysis.fig03.gam_pygam.run_pygam --meanfd-max 0.5 0.2 --input "/public/home/dingrui/fmri_analysis/data/beh/participants_in_tfmri_demographics.csv" --subjects "/public/home/dingrui/fmri_analysis/data/beh/sub_list_valid_4_ER.txt" --excluded "/public/home/dingrui/fmri_analysis/data/fmri/subs_removed_from_2ndlevel.txt" --parent-edu "/public/home/dingrui/fmri_analysis/data/beh/env_family_student_cbcl.tsv" --meanfd "/public/home/dingrui/fmri_analysis/data/fmri/qc_res_subs_runs_fmri.csv" --fig3-volume-dir "/public/home/dingrui/fmri_analysis/data/fmri/res_1stlevel" --fig3-volume-atlas "resources/atlases/schaefer2018/Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz" --schaefer-atlas "resources/atlases/schaefer2018/Schaefer2018_400Parcels_7Networks_order.dlabel.nii" --system-mask-dir "/public/home/dingrui/fmri_analysis/res/res_bayes" --output "outputs/fig03/gam_pygam_volume_400_7net"
 
-Schaefer 400 plus Tian S2, and Schaefer 200 plus Tian S2. Both keep Yeo 7 and
-the four systems. Tian labels 1..32 are appended, lamy and mamy supply the
-four amygdala parcels inside the parcel BH family, and only meanFD above 0.5
-is dropped. See the README for the commands and the map and curve outputs.
+Schaefer 400 plus Tian S2 fits 432 parcels, Yeo 7, four systems, and six
+Juelich amygdala ROIs as four separate BH families for each comparison.
+Schaefer 200 plus Tian S2 fits only 232 parcels. The four Tian amygdala
+parcels remain in the parcel family. See the README for FD 0.5 commands.
 
 400 parcels, Kong 2022 parcel means only:
 
@@ -58,6 +60,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -101,6 +104,9 @@ COVARIATES = ("gender", "site_id", "parent_edu", "meanFD")
 K_SPLINES = 5
 LAM_LOG_RANGE = (-5.0, 5.0, 12)
 GRID_SIZE = 101
+COMPARISONS = ("m3_vs_m1", "m3_vs_m2")
+TIAN_INPUT_VERSION = 2
+AGE_EFFECT_DEFINITION = "m3_empirical_centered_age_v1"
 
 
 def resolve_project_path(path: Path) -> Path:
@@ -207,6 +213,7 @@ def prepare_volume_inputs(input_path: Path | None, subjects_path: Path, excluded
     atlas_for_volumes = volume_atlas
     min_extra_voxels = 5
     tian_note = None
+    include_groups = not parcels_only
     if parcels_only and tian_atlas is not None:
         raise ValueError("--tian-atlas cannot be combined with --parcels-only")
     if parcels_only:
@@ -228,14 +235,19 @@ def prepare_volume_inputs(input_path: Path | None, subjects_path: Path, excluded
             volume_atlas, tian_atlas, n_cortical, combined_path)
         atlas_for_volumes = combined_path
         tian_note = {
+            "input_version": TIAN_INPUT_VERSION,
             "n_cortical": n_cortical,
             "n_parcels": n_cortical + 32,
             "marginal_parcels": marginal,
             "amygdala_parcels": amygdala_table["parcel"].astype(int).tolist(),
             "combined_atlas": combined_path.name,
             "tian_atlas": str(tian_atlas),
+            "schaefer_dlabel": str(dlabel_path.resolve()),
             "partial_r2": "max(0, 1 - RSS_full / RSS_reduced)",
+            "include_groups": n_cortical == 400,
+            "include_juelich": n_cortical == 400,
         }
+        include_groups = n_cortical == 400
         amygdala_table.to_csv(input_dir / "amygdala_parcels.csv", index=False)
         (input_dir / "tian_source.txt").write_text(
             "\n".join([
@@ -248,7 +260,7 @@ def prepare_volume_inputs(input_path: Path | None, subjects_path: Path, excluded
             ]) + "\n",
             encoding="utf-8",
         )
-    else:
+    if not parcels_only and (tian_note is None or include_groups):
         from analysis.fig03.gam_nested.amygdala import (
             AMYGDALA_ORDER,
             MIN_AMYGDALA_VOXELS,
@@ -274,7 +286,7 @@ def prepare_volume_inputs(input_path: Path | None, subjects_path: Path, excluded
     counts = prepare_from_effect_volumes(
         metadata, rpsl_paths, lkng_paths, atlas_for_volumes, dlabel_path, system_mask_dir, input_dir,
         extra_masks=extra_masks, min_extra_voxels=min_extra_voxels,
-        parcel_info_table=parcel_table, include_groups=not parcels_only,
+        parcel_info_table=parcel_table, include_groups=include_groups,
         extra_parcel_info=extra_parcel_info)
     counts["n_dropped_no_volume"] = len(missing_volume)
     counts["n_dropped_parent_edu"] = int(len(dropped_parent_edu))
@@ -284,7 +296,8 @@ def prepare_volume_inputs(input_path: Path | None, subjects_path: Path, excluded
         (input_dir / "tian_combined.json").write_text(json.dumps(tian_note, indent=2), encoding="utf-8")
         counts["tian_combined"] = True
         counts["n_cortical"] = int(tian_note["n_cortical"])
-        counts["n_amygdala"] = len(tian_note["amygdala_parcels"])
+        counts["n_tian_amygdala"] = len(tian_note["amygdala_parcels"])
+        counts["parcels_only"] = not include_groups
         counts["marginal_parcels"] = list(tian_note["marginal_parcels"])
     return counts
 
@@ -295,40 +308,55 @@ def _age_grid(age: np.ndarray) -> np.ndarray:
     return np.unique(np.quantile(finite, quantiles))
 
 
-def age_effect_on_residual_scale(model, y: np.ndarray, covariates: np.ndarray,
+def age_effect_on_residual_scale(model, y: np.ndarray, age: np.ndarray, covariates: np.ndarray,
                                  finite: np.ndarray, grid: np.ndarray,
                                  covariate_mean: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Age curve on the scale of residuals after the intercept and covariates.
+    """Centered m3 age effect, matching partial residuals, and pointwise CI.
 
-    The residual subtracts the ordinary-least-squares fit of the intercept and
-    the four covariates. The curve is the full-model prediction at the mean of
-    those covariates minus that reduced prediction. The band is the full model's
-    95% pointwise confidence interval shifted by the same reduced prediction.
+    The reference is the average m3 model-matrix row over the valid subjects'
+    observed ages, with covariates held at their means. Contrasting against
+    that row removes the intercept and covariate contributions from both the
+    curve and its covariance. Points add this same age effect to m3 residuals.
+    The CI remains conditional on the GCV-selected smoothing parameter.
     """
+    from scipy.stats import norm, t
+
     y = np.asarray(y, dtype=float)
+    age = np.asarray(age, dtype=float)
     covariates = np.asarray(covariates, dtype=float)
     if covariates.ndim == 1:
         covariates = covariates.reshape(-1, 1)
     finite = np.asarray(finite, dtype=bool)
     grid = np.asarray(grid, dtype=float)
     covariate_mean = np.asarray(covariate_mean, dtype=float).reshape(-1)
-    reduced_design = np.column_stack([np.ones(int(finite.sum())), covariates[finite]])
-    beta = np.linalg.lstsq(reduced_design, y[finite], rcond=None)[0]
-    residual = np.full(y.shape[0], np.nan, dtype=float)
-    residual[finite] = y[finite] - reduced_design @ beta
     design = np.column_stack([
         grid,
         np.repeat(covariate_mean.reshape(1, -1), grid.size, axis=0),
     ])
-    fitted = np.asarray(model.predict(design), dtype=float).reshape(-1)
-    reduced_at_mean = float(beta[0] + np.dot(covariate_mean, beta[1:]))
-    effect = fitted - reduced_at_mean
-    intervals = np.asarray(model.confidence_intervals(design, width=0.95), dtype=float)
-    if intervals.shape == (2, grid.size) and grid.size != 2:
-        intervals = intervals.T
-    if intervals.shape != (grid.size, 2):
-        raise ValueError(f"confidence_intervals returned shape {intervals.shape}, expected {(grid.size, 2)}")
-    return effect, intervals[:, 0] - reduced_at_mean, intervals[:, 1] - reduced_at_mean, residual
+    observed_at_mean = np.column_stack([
+        age[finite], np.repeat(covariate_mean.reshape(1, -1), int(finite.sum()), axis=0),
+    ])
+    observed_basis = model._modelmat(observed_at_mean).toarray()
+    reference = observed_basis.mean(axis=0)
+    contrast = model._modelmat(design).toarray() - reference
+    coefficients = np.asarray(model.coef_, dtype=float)
+    covariance = np.asarray(model.statistics_["cov"], dtype=float)
+    effect = contrast @ coefficients
+    variance = np.einsum("ij,jk,ik->i", contrast, covariance, contrast)
+    standard_error = np.sqrt(np.maximum(variance, 0.0))
+    if model.distribution._known_scale:
+        critical = float(norm.ppf(0.975))
+    else:
+        residual_df = float(finite.sum()) - float(model.statistics_["edof"])
+        if residual_df <= 0:
+            raise ValueError("The centered age CI requires positive m3 residual degrees of freedom")
+        critical = float(t.ppf(0.975, residual_df))
+    observed_effect = (observed_basis - reference) @ coefficients
+    fitted_observed = np.asarray(
+        model.predict(np.column_stack([age[finite], covariates[finite]])), dtype=float).reshape(-1)
+    residual = np.full(y.shape[0], np.nan, dtype=float)
+    residual[finite] = y[finite] - fitted_observed + observed_effect
+    return effect, effect - critical * standard_error, effect + critical * standard_error, residual
 
 
 def _derivative(curve: np.ndarray, grid: np.ndarray) -> np.ndarray:
@@ -376,6 +404,31 @@ def _fit_one(stat_utils, y: np.ndarray, age: np.ndarray, covariates: np.ndarray,
         edf_full=edf_full,
         edf_reduced=edf_reduced,
     )
+    # m2 uses the same observations and covariates, with an unpenalized age term.
+    linear_design = np.column_stack([np.ones(n_obs), age[finite], covariates[finite]])
+    linear_beta = np.linalg.lstsq(linear_design, y[finite], rcond=None)[0]
+    linear_residual = y[finite] - linear_design @ linear_beta
+    rss_linear = float(linear_residual @ linear_residual)
+    edf_linear = float(np.linalg.matrix_rank(linear_design))
+    # Test the fixed spline space against the linear subspace. Using the
+    # penalized EDF difference here is invalid near the linear null: both the
+    # RSS gain and the added EDF tend to zero, producing spuriously tiny p's.
+    # An OLS reference fit of m3's basis gives an ordinary nested linearity test
+    # whose reference degrees of freedom do not depend on GCV selection.
+    training_design = np.column_stack([age[finite], covariates[finite]])
+    basis = model._modelmat(training_design).toarray()
+    basis_beta, _, basis_rank, _ = np.linalg.lstsq(basis, y[finite], rcond=None)
+    basis_residual = y[finite] - basis @ basis_beta
+    rss_basis = float(basis_residual @ basis_residual)
+    beyond_f, beyond_p, beyond_df1, beyond_df2, _ = stat_utils.nested_anova_gaussian(
+        rss_full=rss_basis, rss_reduced=rss_linear, n_obs=n_obs,
+        edf_full=float(basis_rank), edf_reduced=edf_linear,
+    )
+    # Effect sizes continue to describe the fitted, penalized m3, not the OLS
+    # reference used solely for the nonlinearity test.
+    beyond_r2 = max(0.0, 1.0 - rss_full / rss_linear) if rss_linear > 0 else 0.0
+    linear_variance = rss_linear / max(n_obs - edf_linear, 1.0)
+    beta_covariance = linear_variance * np.linalg.pinv(linear_design.T @ linear_design)
     covariate_mean = covariates[finite].mean(axis=0)
     design = np.column_stack([grid, np.repeat(covariate_mean.reshape(1, -1), grid.size, axis=0)])
     fitted = np.asarray(model.predict(design), dtype=np.float64).reshape(-1)
@@ -386,7 +439,8 @@ def _fit_one(stat_utils, y: np.ndarray, age: np.ndarray, covariates: np.ndarray,
     partial = None
     if store_partial:
         effect, ci_low, ci_high, residual = age_effect_on_residual_scale(
-            model, y, covariates, finite, grid, covariate_mean)
+            model, y, age, covariates, finite, grid, covariate_mean)
+        centered = effect
         partial = {
             "effect": effect,
             "ci_low": ci_low,
@@ -405,25 +459,91 @@ def _fit_one(stat_utils, y: np.ndarray, age: np.ndarray, covariates: np.ndarray,
         "p_age": p_value,
         "partial_r2": partial_r2,
         "age_of_max_change": age_of_max_change,
+        "rss_m1": rss_reduced,
+        "rss_m2": rss_linear,
+        "rss_m3": rss_full,
+        "rss_m3_basis": rss_basis,
+        "rank_m3_basis": int(basis_rank),
+        "edf_m1": edf_reduced,
+        "edf_m2": edf_linear,
+        "edf_m3": edf_full,
+        "beta_age_m2": float(linear_beta[1]),
+        "se_age_m2": float(np.sqrt(max(0.0, beta_covariance[1, 1]))),
+        "F_m3_vs_m1": f_value,
+        "df1_m3_vs_m1": df1,
+        "df2_m3_vs_m1": df2,
+        "p_m3_vs_m1": p_value,
+        "partial_r2_m3_vs_m1": partial_r2,
+        "F_m3_vs_m2": beyond_f,
+        "df1_m3_vs_m2": beyond_df1,
+        "df2_m3_vs_m2": beyond_df2,
+        "p_m3_vs_m2": beyond_p,
+        "partial_r2_m3_vs_m2": beyond_r2,
     }, centered, partial
 
 
 def _correct(stat_utils, rows: list[dict]) -> pd.DataFrame:
     table = pd.DataFrame(rows)
-    if "p_age" not in table.columns:
-        table["p_age"] = np.nan
-    table["q_age"] = np.nan
-    table["reject_age_fdr"] = False
-    finite = np.isfinite(table["p_age"].to_numpy(dtype=float))
-    if finite.any():
-        corrected = stat_utils.fdr_bh(table.loc[finite, "p_age"].to_numpy(dtype=float), alpha=0.05)
-        table.loc[finite, "q_age"] = corrected["qvals"]
-        table.loc[finite, "reject_age_fdr"] = corrected["reject"]
+    for comparison in COMPARISONS:
+        p_column, q_column = f"p_{comparison}", f"q_{comparison}"
+        reject_column = f"reject_{comparison}_fdr"
+        if p_column not in table.columns:
+            table[p_column] = np.nan
+        table[q_column] = np.nan
+        table[reject_column] = False
+        finite = np.isfinite(table[p_column].to_numpy(dtype=float))
+        if finite.any():
+            corrected = stat_utils.fdr_bh(table.loc[finite, p_column].to_numpy(dtype=float), alpha=0.05)
+            table.loc[finite, q_column] = corrected["qvals"]
+            table.loc[finite, reject_column] = corrected["reject"]
+    table["p_age"] = table["p_m3_vs_m1"]
+    table["q_age"] = table["q_m3_vs_m1"]
+    table["reject_age_fdr"] = table["reject_m3_vs_m1_fdr"]
     return table
+
+
+def validate_saved_inputs(input_dir: Path) -> dict | None:
+    """Reject incomplete Tian caches before any models are fitted."""
+    required = ("design.csv", "parcel_response.csv", "parcel_info.csv", "group_response.csv")
+    missing = [name for name in required if not (input_dir / name).is_file()]
+    if missing:
+        raise FileNotFoundError(f"{input_dir} is missing {', '.join(missing)}")
+    note_path = input_dir / "tian_combined.json"
+    if not note_path.is_file():
+        return None
+    note = json.loads(note_path.read_text(encoding="utf-8"))
+    n_cortical = int(note["n_cortical"])
+    if n_cortical not in (200, 400):
+        raise ValueError(f"Tian cache has unsupported cortical count {n_cortical}")
+    columns = set(pd.read_csv(input_dir / "parcel_response.csv", nrows=0).columns) - {"sub_id"}
+    expected = {str(parcel) for parcel in range(1, n_cortical + 33)}
+    if columns != expected:
+        raise ValueError(f"Tian cache must contain all {n_cortical + 32} parcel columns")
+    if not (input_dir / str(note["combined_atlas"])).is_file():
+        raise FileNotFoundError(f"Tian cache has no combined atlas: {input_dir}")
+    if n_cortical == 400:
+        from analysis.fig03.gam_nested.amygdala import AMYGDALA_ORDER
+
+        amygdala_path = input_dir / "amygdala_response.csv"
+        amygdala_columns = (set(pd.read_csv(amygdala_path, nrows=0).columns) - {"sub_id"}
+                            if amygdala_path.is_file() else set())
+        if amygdala_columns != set(AMYGDALA_ORDER):
+            raise ValueError(
+                "The 432 cache has no complete Juelich six-ROI responses. "
+                "Run the full 432 command without --reuse-inputs to extract them."
+            )
+        groups = pd.read_csv(input_dir / "group_response.csv")
+        for dimension, order in (("yeo", YEO_ORDER), ("system", SYSTEM_ORDER)):
+            names = set(groups.loc[groups["dimension"] == dimension, "group"].astype(str))
+            if names != set(order):
+                raise ValueError(f"The 432 cache is missing complete {dimension} responses; rerun the full command")
+    return note
 
 
 def fit_saved_means(stat_utils, input_dir: Path,
                     store_partial: bool = False) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame | None]:
+    note = validate_saved_inputs(input_dir)
+    include_groups = note is None or int(note["n_cortical"]) == 400
     design = analysis_design(pd.read_csv(input_dir / "design.csv"))
     design["sub_id"] = design["sub_id"].astype(str)
     age = design["age"].to_numpy(dtype=float)
@@ -440,13 +560,13 @@ def fit_saved_means(stat_utils, input_dir: Path,
     groups["sub_id"] = groups["sub_id"].astype(str)
     rows: list[dict] = []
     curves: list[pd.DataFrame] = []
-    residual_columns: dict[str, np.ndarray] = {}
+    residual_frames: list[pd.DataFrame] = []
 
     def add_unit(dimension: str, name: str, values: np.ndarray, index: int, total: int) -> None:
         print(f"pygam {dimension} {name} ({index}/{total})", flush=True)
         statistics, centered, partial = _fit_one(
             stat_utils, values, age, covariates, grid, lam_grid,
-            store_partial=store_partial and dimension == "parcel")
+            store_partial=store_partial)
         statistics.update({"dimension": dimension, "name": str(name)})
         rows.append(statistics)
         curve = {
@@ -459,8 +579,11 @@ def fit_saved_means(stat_utils, input_dir: Path,
             curve["effect"] = partial["effect"]
             curve["ci_low"] = partial["ci_low"]
             curve["ci_high"] = partial["ci_high"]
-            if dimension == "parcel":
-                residual_columns[str(name)] = partial["residual"]
+            residual_frames.append(pd.DataFrame({
+                "sub_id": design["sub_id"].to_numpy(), "age": age,
+                "dimension": dimension, "name": str(name),
+                "residual": partial["residual"],
+            }))
         curves.append(pd.DataFrame(curve))
 
     parcel_names = [column for column in parcels.columns if column != "sub_id"]
@@ -469,6 +592,8 @@ def fit_saved_means(stat_utils, input_dir: Path,
     for index, name in enumerate(parcel_names, start=1):
         add_unit("parcel", name, parcels[name].to_numpy(dtype=float), index, len(parcel_names))
     for dimension, order in (("yeo", YEO_ORDER), ("system", SYSTEM_ORDER)):
+        if not include_groups:
+            continue
         if "dimension" not in groups.columns or groups.empty:
             continue
         subset = groups[groups["dimension"] == dimension]
@@ -481,11 +606,15 @@ def fit_saved_means(stat_utils, input_dir: Path,
                 on="sub_id", how="left", validate="one_to_one")
             add_unit(dimension, name, matched["y"].to_numpy(dtype=float), index, len(order))
     amygdala_path = input_dir / "amygdala_response.csv"
-    if amygdala_path.is_file():
+    if include_groups and amygdala_path.is_file():
         amygdala = pd.read_csv(amygdala_path)
         amygdala["sub_id"] = amygdala["sub_id"].astype(str)
         order_path = input_dir / "amygdala_order.csv"
-        if order_path.is_file():
+        if note is not None:
+            from analysis.fig03.gam_nested.amygdala import AMYGDALA_ORDER
+
+            amygdala_names = list(AMYGDALA_ORDER)
+        elif order_path.is_file():
             amygdala_names = pd.read_csv(order_path)["roi"].astype(str).tolist()
         else:
             amygdala_names = [column for column in amygdala.columns if column != "sub_id"]
@@ -501,38 +630,60 @@ def fit_saved_means(stat_utils, input_dir: Path,
     statistics = pd.concat([_correct(stat_utils, [row for row in rows if row["dimension"] == dimension])
                             for dimension in fitted_dimensions], ignore_index=True)
     column_order = [
-        "dimension", "name", "n_obs", "F_age", "df1", "df2", "p_age", "q_age",
+        "dimension", "name", "n_obs",
+        *[f"{field}_{comparison}" for comparison in COMPARISONS
+          for field in ("F", "df1", "df2", "p", "q", "partial_r2")],
+        *[f"reject_{comparison}_fdr" for comparison in COMPARISONS],
+        "rss_m1", "rss_m2", "rss_m3", "rss_m3_basis", "rank_m3_basis",
+        "edf_m1", "edf_m2", "edf_m3",
+        "beta_age_m2", "se_age_m2", "F_age", "df1", "df2", "p_age", "q_age",
         "reject_age_fdr", "partial_r2", "rss_full", "rss_reduced",
         "edf_full", "edf_reduced", "age_of_max_change",
     ]
     residuals = None
     if store_partial:
-        residuals = pd.DataFrame({"sub_id": design["sub_id"].to_numpy(), "age": age})
-        for name in sorted(residual_columns, key=lambda value: int(value)):
-            residuals[name] = residual_columns[name]
+        residuals = pd.concat(residual_frames, ignore_index=True)
     return statistics.reindex(columns=column_order), pd.concat(curves, ignore_index=True), residuals
 
 
 def write_metadata(output_dir: Path, counts: dict) -> None:
+    from analysis.fig03.gam_pygam.plot_region_age import curve_style_metadata
+
     covariate_terms = " + ".join(COVARIATES)
     payload = {
+        "models": {
+            "m1": f"intercept + {covariate_terms} (OLS)",
+            "m2": f"intercept + age + {covariate_terms} (OLS)",
+            "m3": f"intercept + s(age, n_splines=5) + {covariate_terms}",
+        },
         "full_model": f"intercept + s(age, n_splines=5) + {covariate_terms}",
         "reduced_model": f"intercept + {covariate_terms}",
         "smoothing": "GCV grid from 1e-5 to 1e5, 12 values",
-        "comparison": "nested F of the full model against the reduced model; p_age",
+        "comparisons": {
+            "m3_vs_m1": "overall age contribution",
+            "m3_vs_m2": "smooth age contribution beyond linear age",
+        },
+        "inference": {
+            "m3_vs_m1": "historical approximate RSS/EDF F test after GCV selection",
+            "m3_vs_m2": "nested F test of an OLS reference fit in m3's fixed spline basis versus m2; df from matrix ranks",
+            "assumptions": "independent homoskedastic Gaussian errors; not mgcv anova.gam",
+            "effect_sizes": "both partial R2 values use the penalized m3 RSS",
+        },
+        "legacy_aliases": "F_age/p_age/q_age/partial_r2 refer to m3_vs_m1",
+        "partial_r2": "for each comparison max(0, 1 - RSS_m3 / RSS_reference)",
         "curve": (
-            "residual after the intercept and four covariates; "
-            "the age curve is the full model at the mean covariates minus that reduced prediction, "
-            "with the full model's 95% pointwise confidence interval"
+            "m3 age effect centered over each unit's valid observed ages, at mean covariates; "
+            "points are m3 residuals plus that same centered age effect; "
+            "95% pointwise CI uses the model-matrix contrast and m3 coefficient covariance, "
+            "conditional on the selected smoothing parameter"
             if counts.get("tian_combined") else
             "covariates at their means; the 1% to 99% age-quantile curve is then mean-centered"
         ),
-        "bh": (
-            "within the combined parcels, within yeo, and within system"
-            if counts.get("tian_combined") else
-            "within parcel" if counts.get("parcels_only") else
-            "within parcel, within yeo, within system, and within amygdala"
-        ),
+        "age_effect_definition": AGE_EFFECT_DEFINITION if counts.get("tian_combined") else None,
+        "bh": ("within parcel" if counts.get("parcels_only") else
+               "within parcel, within yeo, within system, and within Juelich amygdala")
+              + "; separately for each comparison",
+        "tian_curve_style": curve_style_metadata() if counts.get("tian_combined") else None,
         "contrast": "effectSize-reg_neg_Observe_across_runs minus effectSize-pas_neg_Observe_across_runs",
         "meanfd_rule": "drop subjects with meanFD greater than meanfd_max" if "meanfd_max" in counts else "no meanFD magnitude filter",
         "counts": counts,
@@ -551,19 +702,49 @@ def saved_counts(input_dir: Path) -> dict:
         "parcels_only": not bool(has_groups),
         "n_amygdala": 6 if (input_dir / "amygdala_response.csv").is_file() else 0,
     }
+    meanfd_source = input_dir / "meanfd_source.txt"
+    if meanfd_source.is_file():
+        for line in meanfd_source.read_text(encoding="utf-8").splitlines():
+            if line.startswith("max_meanFD:"):
+                counts["meanfd_max"] = float(line.split(":", 1)[1].strip())
     note_path = input_dir / "tian_combined.json"
     if note_path.is_file():
         note = json.loads(note_path.read_text(encoding="utf-8"))
         counts["tian_combined"] = True
         counts["n_cortical"] = int(note["n_cortical"])
-        counts["n_amygdala"] = len(note.get("amygdala_parcels", []))
+        counts["n_tian_amygdala"] = len(note.get("amygdala_parcels", []))
         counts["marginal_parcels"] = list(note.get("marginal_parcels", []))
-        counts["parcels_only"] = False
+        counts["parcels_only"] = int(note["n_cortical"]) == 200
+        if counts["parcels_only"]:
+            counts["n_amygdala"] = 0
     return counts
 
 
+def saved_dlabel(input_dir: Path, requested: Path | None = None) -> Path:
+    """Choose the matching surface atlas for saved 232/432 inputs."""
+    if requested is not None:
+        return resolve_project_path(requested)
+    note_path = input_dir / "tian_combined.json"
+    if note_path.is_file():
+        note = json.loads(note_path.read_text(encoding="utf-8"))
+        recorded = note.get("schaefer_dlabel")
+        if recorded and Path(recorded).is_file():
+            return Path(recorded)
+        count = int(note["n_cortical"])
+        return PROJECT_ROOT / "resources" / "atlases" / "schaefer2018" / (
+            f"Schaefer2018_{count}Parcels_7Networks_order.dlabel.nii")
+    return DEFAULT_DLABEL
+
+
+def write_trajectory_lists(selected: pd.DataFrame, result_dir: Path) -> None:
+    selected.to_csv(result_dir / "trajectory_units.csv", index=False)
+    selected.loc[selected["dimension"] == "parcel"].to_csv(
+        result_dir / "trajectory_parcels.csv", index=False)
+
+
 def _write_tian_followup(output_dir: Path, statistics: pd.DataFrame, curves: pd.DataFrame,
-                         dlabel_path: Path) -> None:
+                         dlabel_path: Path, border_surfaces: tuple[Path, Path] | None = None,
+                         wb_command: str = "wb_command") -> None:
     """Per-parcel residual curves and the partial-R² / mask brain files."""
     from analysis.fig03.gam_pygam.brain_maps import write_brain_maps
     from analysis.fig03.gam_pygam.plot_region_age import write_region_curves
@@ -580,20 +761,62 @@ def _write_tian_followup(output_dir: Path, statistics: pd.DataFrame, curves: pd.
         list(note.get("amygdala_parcels", [])),
         figure_dir,
     )
-    selected.to_csv(result_dir / "trajectory_parcels.csv", index=False)
+    write_trajectory_lists(selected, result_dir)
     write_brain_maps(
         input_dir / str(note["combined_atlas"]),
         statistics,
         list(note.get("marginal_parcels", [])),
         output_dir / "maps",
         dlabel_path,
+        border_surfaces=border_surfaces, wb_command=wb_command,
     )
     print(f"Trajectory parcels: {result_dir / 'trajectory_parcels.csv'}")
 
 
-def rewrite_saved_maps(output_dir: Path, dlabel_path: Path) -> None:
-    """Rebuild the MNI volumes and fsLR copies from a finished Tian fit."""
-    from analysis.fig03.gam_pygam.brain_maps import write_brain_maps
+def rewrite_saved_curves(output_dir: Path) -> None:
+    """Redraw Tian age-curve SVGs from saved curves and covariate residuals."""
+    from analysis.fig03.gam_pygam.plot_region_age import curve_style_metadata, write_region_curves
+
+    statistics_path = output_dir / "statistics" / "pygam_age_comparison.csv"
+    curves_path = output_dir / "statistics" / "pygam_curves.csv"
+    residuals_path = output_dir / "statistics" / "covariate_residuals.csv"
+    note_path = output_dir / "inputs" / "tian_combined.json"
+    info_path = output_dir / "inputs" / "parcel_info.csv"
+    metadata_path = output_dir / "run_metadata.json"
+    required = (statistics_path, curves_path, residuals_path, note_path, info_path, metadata_path)
+    missing = [str(path) for path in required if not path.is_file()]
+    if missing:
+        raise FileNotFoundError(
+            f"{output_dir} cannot redraw age curves. Missing: {', '.join(missing)}"
+        )
+    payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    if payload.get("age_effect_definition") != AGE_EFFECT_DEFINITION:
+        raise ValueError(
+            "Saved curves use the older m1-residual/shifted-CI definition. "
+            "Run --step fit on this output's saved inputs once before --step curves."
+        )
+    note = json.loads(note_path.read_text(encoding="utf-8"))
+    selected = write_region_curves(
+        pd.read_csv(statistics_path),
+        pd.read_csv(curves_path),
+        pd.read_csv(residuals_path),
+        pd.read_csv(info_path),
+        list(note.get("marginal_parcels", [])),
+        list(note.get("amygdala_parcels", [])),
+        output_dir / "figures",
+    )
+    write_trajectory_lists(selected, output_dir / "statistics")
+    payload["tian_curve_style"] = curve_style_metadata()
+    metadata_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    list_path = output_dir / "statistics" / "trajectory_units.csv"
+    print(f"Trajectory parcels: {list_path}")
+
+
+def rewrite_saved_maps(output_dir: Path, dlabel_path: Path,
+                       border_surfaces: tuple[Path, Path] | None = None,
+                       wb_command: str = "wb_command", borders_only: bool = False) -> None:
+    """Rebuild maps or just cortical borders from a finished Tian fit."""
+    from analysis.fig03.gam_pygam.brain_maps import write_brain_borders, write_brain_maps
 
     statistics_path = output_dir / "statistics" / "pygam_age_comparison.csv"
     note_path = output_dir / "inputs" / "tian_combined.json"
@@ -603,17 +826,17 @@ def rewrite_saved_maps(output_dir: Path, dlabel_path: Path) -> None:
             "statistics/pygam_age_comparison.csv and inputs/tian_combined.json are required."
         )
     note = json.loads(note_path.read_text(encoding="utf-8"))
-    write_brain_maps(
-        output_dir / "inputs" / str(note["combined_atlas"]),
-        pd.read_csv(statistics_path),
-        list(note.get("marginal_parcels", [])),
-        output_dir / "maps",
-        dlabel_path,
-    )
+    inputs = (output_dir / "inputs" / str(note["combined_atlas"]),
+              pd.read_csv(statistics_path), list(note.get("marginal_parcels", [])), output_dir / "maps")
+    if borders_only:
+        write_brain_borders(*inputs, border_surfaces=border_surfaces, wb_command=wb_command)
+    else:
+        write_brain_maps(*inputs, dlabel_path, border_surfaces=border_surfaces, wb_command=wb_command)
 
 
 def write_followup_figures(output_dir: Path, statistics: pd.DataFrame, curves: pd.DataFrame,
-                           dlabel_path: Path) -> None:
+                           dlabel_path: Path, border_surfaces: tuple[Path, Path] | None = None,
+                           wb_command: str = "wb_command") -> None:
     """Parcel trajectories, group age curves, and the age versus parent_edu scatter, all SVG."""
     from analysis.fig03.gam_nested.plot_nested import plot_age_parent_edu
     from analysis.fig03.gam_pygam.plot_trajectories import (
@@ -629,7 +852,7 @@ def write_followup_figures(output_dir: Path, statistics: pd.DataFrame, curves: p
     association = plot_age_parent_edu(design, figure_dir / "age_parent_edu.svg")
     association.to_csv(result_dir / "age_parent_edu_correlation.csv", index=False)
     if (input_dir / "tian_combined.json").is_file():
-        _write_tian_followup(output_dir, statistics, curves, dlabel_path)
+        _write_tian_followup(output_dir, statistics, curves, dlabel_path, border_surfaces, wb_command)
         print(f"Association figure: {figure_dir / 'age_parent_edu.svg'}")
         return
     parcel_info = pd.read_csv(input_dir / "parcel_info.csv")
@@ -663,7 +886,9 @@ def write_followup_figures(output_dir: Path, statistics: pd.DataFrame, curves: p
     print(f"Significant parcels: {list_path}")
 
 
-def run_fit(stat_utils, output_dir: Path, counts: dict, dlabel_path: Path) -> None:
+def run_fit(stat_utils, output_dir: Path, counts: dict, dlabel_path: Path,
+            border_surfaces: tuple[Path, Path] | None = None,
+            wb_command: str = "wb_command") -> None:
     input_dir = output_dir / "inputs"
     result_dir = output_dir / "statistics"
     store_partial = (input_dir / "tian_combined.json").is_file()
@@ -676,13 +901,15 @@ def run_fit(stat_utils, output_dir: Path, counts: dict, dlabel_path: Path) -> No
     if residuals is not None:
         residuals.to_csv(result_dir / "covariate_residuals.csv", index=False)
     write_metadata(output_dir, counts)
-    write_followup_figures(output_dir, statistics, curves, dlabel_path)
+    write_followup_figures(output_dir, statistics, curves, dlabel_path, border_surfaces, wb_command)
     for dimension in ("parcel", "yeo", "system", "amygdala"):
         subset = statistics[statistics["dimension"].astype(str) == dimension]
         if subset.empty:
             continue
-        n_significant = int((subset["q_age"] < 0.05).sum())
-        print(f"{output_dir.name} {dimension}: {len(subset)} units, {n_significant} with q_age < 0.05")
+        for comparison in COMPARISONS:
+            n_significant = int((subset[f"q_{comparison}"] < 0.05).sum())
+            print(f"{output_dir.name} {dimension}: {len(subset)} units, "
+                  f"{n_significant} with q_{comparison} < 0.05")
     print(f"Subjects: {counts['n_subjects']}")
     print(f"Statistics: {statistics_path}")
     print(f"Curves: {curves_path}")
@@ -697,7 +924,7 @@ def main() -> None:
     parser.add_argument("--meanfd", type=Path, default=ORIGINAL_MEANFD)
     parser.add_argument("--fig3-volume-dir", type=Path, default=ORIGINAL_VOLUME_DIR)
     parser.add_argument("--fig3-volume-atlas", type=Path, default=DEFAULT_ATLAS)
-    parser.add_argument("--schaefer-atlas", type=Path, default=DEFAULT_DLABEL)
+    parser.add_argument("--schaefer-atlas", type=Path, default=None)
     parser.add_argument("--system-mask-dir", type=Path, default=ORIGINAL_SYSTEM_MASKS)
     parser.add_argument("--juelich-atlas", type=Path, default=None,
                         help="Juelich-maxprob-thr25-2mm.nii.gz. Defaults to FSLDIR, then nilearn.")
@@ -710,11 +937,19 @@ def main() -> None:
     parser.add_argument("--tian-atlas", type=Path, default=None,
                         help="Tian Subcortex S2. Labels 1..32 are appended after the Schaefer parcels.")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument("--reuse-inputs", type=Path, default=None,
+                        help="Reuse complete saved input means in a new output directory; supports FD subsetting.")
     parser.add_argument("--meanfd-max", type=float, nargs="+", default=None,
                         help="Drop subjects with meanFD above each value. 0.5 0.2 writes _FD05 and _FD02.")
-    parser.add_argument("--step", choices=("all", "fit", "maps"), default="all",
-                        help="fit refits saved means. maps rewrites Tian brain files and does not refit.")
+    parser.add_argument("--border-surfaces", type=Path, nargs=2, metavar=("LEFT", "RIGHT"), default=None,
+                        help="fsLR32k border surfaces. Defaults to bundled fsaverage L/R inflated surfaces; matching midthickness surfaces are also accepted.")
+    parser.add_argument("--wb-command", default="wb_command",
+                        help="Workbench executable name or path for .border generation.")
+    parser.add_argument("--step", choices=("all", "fit", "maps", "curves", "borders"), default="all",
+                        help="fit refits saved means. maps rewrites Tian maps and borders. curves redraws age SVGs. borders writes only ROI/border files. maps, curves and borders do not refit.")
     args = parser.parse_args()
+    if args.reuse_inputs is not None and args.step != "all":
+        parser.error("--reuse-inputs is used with --step all (the default)")
     from analysis.fig03.gam_nested.run_nested import meanfd_directory_suffix, subset_saved_inputs
 
     output_dir = resolve_project_path(args.output)
@@ -722,14 +957,42 @@ def main() -> None:
         output_dirs = [Path(str(output_dir) + meanfd_directory_suffix(threshold)) for threshold in args.meanfd_max]
     else:
         output_dirs = [output_dir]
-    dlabel_path = resolve_project_path(args.schaefer_atlas)
+    dlabel_path = resolve_project_path(args.schaefer_atlas or DEFAULT_DLABEL)
     tian_atlas = None if args.tian_atlas is None else resolve_project_path(args.tian_atlas)
-    if args.step == "maps":
+    border_surfaces = None if args.border_surfaces is None else tuple(
+        resolve_project_path(path) for path in args.border_surfaces)
+    if args.step in ("maps", "borders"):
         for one_output in output_dirs:
-            rewrite_saved_maps(one_output, dlabel_path)
+            rewrite_saved_maps(one_output, saved_dlabel(one_output / "inputs", args.schaefer_atlas),
+                               border_surfaces, args.wb_command, borders_only=args.step == "borders")
+        return
+    if args.step == "curves":
+        for one_output in output_dirs:
+            rewrite_saved_curves(one_output)
         return
     stat_utils = load_historical_stats()
-    if args.step == "fit":
+    if args.reuse_inputs is not None:
+        source_dir = resolve_project_path(args.reuse_inputs)
+        if validate_saved_inputs(source_dir) is None:
+            raise ValueError("--reuse-inputs requires Tian saved inputs with tian_combined.json")
+        counts = saved_counts(source_dir)
+        dlabel_path = saved_dlabel(source_dir, args.schaefer_atlas)
+        prepared = []
+        for index, one_output in enumerate(output_dirs):
+            dest_dir = one_output / "inputs"
+            source_path, dest_path = source_dir.resolve(), dest_dir.resolve()
+            if source_path == dest_path:
+                raise ValueError("Use --step fit to refit an inputs directory in place")
+            if source_path in dest_path.parents or dest_path in source_path.parents:
+                raise ValueError("Reused source inputs and destination inputs must not contain one another")
+            if args.meanfd_max:
+                filtered = subset_saved_inputs(source_dir, dest_dir, args.meanfd_max[index])
+            else:
+                shutil.copytree(source_dir, dest_dir)
+                filtered = {}
+            prepared.append((one_output, {**counts, **filtered, "reused_inputs": str(source_dir)}))
+        print(f"Reusing saved means without reading subject volumes: {source_dir}")
+    elif args.step == "fit":
         prepared = []
         for one_output in output_dirs:
             input_dir = one_output / "inputs"
@@ -740,6 +1003,8 @@ def main() -> None:
                     f"{input_dir} is missing {', '.join(missing)}. Run without --step fit first."
                 )
             prepared.append((one_output, saved_counts(input_dir)))
+        if prepared:
+            dlabel_path = saved_dlabel(prepared[0][0] / "inputs", args.schaefer_atlas)
     elif args.meanfd_max:
         shared_inputs = Path(str(output_dir) + "_shared_inputs") / "inputs"
         volume_atlas = resolve_project_path(args.fig3_volume_atlas)
@@ -747,6 +1012,7 @@ def main() -> None:
         stamp_text = f"{volume_atlas.resolve()}\n{dlabel_path.resolve()}\n"
         if tian_atlas is not None:
             stamp_text += f"tian:{tian_atlas.resolve()}\n"
+            stamp_text += f"pygam_tian_inputs:{TIAN_INPUT_VERSION}\n"
         saved_means = shared_inputs / "parcel_response.csv"
         if saved_means.is_file() and stamp.is_file() and stamp.read_text(encoding="utf-8") == stamp_text:
             print(f"Using saved volume means: {shared_inputs}")
@@ -809,7 +1075,7 @@ def main() -> None:
         )
         prepared = [(output_dir, counts)]
     for one_output, counts in prepared:
-        run_fit(stat_utils, one_output, counts, dlabel_path)
+        run_fit(stat_utils, one_output, counts, dlabel_path, border_surfaces, args.wb_command)
 
 
 if __name__ == "__main__":
