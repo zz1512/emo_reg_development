@@ -1,5 +1,19 @@
 # pygam 年龄模型
 
+结果阅读入口：[年龄 BF 与 ERQ 三模型结果读取和解释指南](README_RESULTS.md)，包含读取顺序、字段、比较方向、显著/不显著结果的解释、样本排除追溯及论文报告模板。
+
+本次确认只绘制 152、154、182、185 的大字彩色随龄图：`--step curves --curve-parcels 152 154 182 185`，仅输出 SVG 到独立 `figures/age_curves_selected/`。152/154 使用红色散点、纵轴固定 `[-1.5, 1.5]`；182/185 使用绿色散点、纵轴固定 `[-1, 1]`，拟合线和真实95%均值CI使用对应色系。Arial 字号进一步增大为轴名称24 pt、刻度18 pt、标题16 pt、注释14 pt。mock 示例及云端替换文件/命令见 [README_SELECTED_CURVES.md](README_SELECTED_CURVES.md)。以下原有金色/灰点样式说明适用于不加该选择参数的历史全范围绘图。
+
+2026-11-08：全部 Tian 表面统计图、显著 mask、border 和指定六区 dlabel 统一使用**原生 Schaefer fsLR32k dlabel 的顶点标签**，按脑区编号直接赋值，不再投影 MNI 体积统计图。MNI 体积输出及原有统计值不变。新版六区文件名含 `nativeSurface`，位于 `outputs/fig03/selected_roi_dlabel_native/`；绿/红/亮青色保持不变。旧 `fromMNI` dlabel 仅保留作历史对照，不能与新版表面地图配套使用。云端替换文件、仅重建地图的命令及真实图谱预览见 [README_SELECTED_DLABEL.md](README_SELECTED_DLABEL.md)。
+
+2026-11-10：年龄分析新增正式贝叶斯样条比较，只补 Tian432/232、FD≤0.5，输出 BF31、BF32、BF21 和九套先验敏感性。原 pyGAM 结果不改写。具体先验、替换文件及命令见 [README_BAYES.md](README_BAYES.md)。
+
+ERQ 分析升级为 baseline → additive ERQ → full age×ERQ 三模型，主要比较为 `additive_vs_baseline` 与 `full_vs_additive`，分别在 Tian432、Yeo7、system4、Juelich6 内做 BH，不设前一步显著的门槛；保留 `full_vs_baseline` 补充比较。三个模型统一使用分类站点编码，不直接复用历史 m3 统计表。完整保留 449 单元，导出 Word 三线表和全精度 CSV，ERQ 暂不计算 BF。入口、参数定义、替换文件和完整重跑命令见 [README_ERQ.md](README_ERQ.md)。
+
+当前云端 `er_profiles_new.csv` 的实际列名为 `sub_ids` 和 `ERQ_CR`，ERQ 命令需包含 `--erq-id-column sub_ids --erq-column ERQ_CR`。
+
+用户已确认同目录 `er_profiles.csv` 与 `er_profiles_new.csv` 的数据行逐行对应。新增 `--erq-id-source "/public/home/dingrui/fmri_analysis/data/beh/er_profiles.csv"`，在任何筛选前取对应原表数据行的前 6 位还原真实 ID；分数仍读取新表的 `ERQ_CR`。脚本校验行数、ID 格式及唯一性，并输出逐行 ID 对照、全部 ERQ 源行、原筛选与新增筛选的逐被试排除记录及人数；各单元 contrast 缺失另有名单。具体文件和命令见 ERQ 文档。
+
 四个协变量 `C` 为 `gender + site_id + parent_edu + meanFD`。当前拟合三个模型：
 
 | 模型 | 公式与估计 |
@@ -125,9 +139,9 @@ python -m analysis.fig03.gam_pygam.run_pygam --step curves --output "outputs/fig
 | `partial_r2_<comparison>_fslr32k.dscalar.nii` | 皮层partial R² CIFTI |
 | `significance_mask_<comparison>_fslr32k.dscalar.nii` | 皮层显著mask CIFTI |
 
-其中 `<comparison>` 为 `m3_vs_m1` 或 `m3_vs_m2`。156、157仅适用于432版，两个mask中均人工标成2，并优先于显著标签1；232没有这个人工边缘集合。volume保留皮下区，fsLR文件存皮层。输出文件供手动导入Workbench出图。
+其中 `<comparison>` 为 `m3_vs_m1` 或 `m3_vs_m2`。156、157仅适用于432版，两个mask中均人工标成2，并优先于显著标签1；232没有这个人工边缘集合。volume保留皮下区，fsLR文件存皮层。表面文件直接使用对应 400/200 区原生 Schaefer dlabel 的标签：同一脑区所有顶点填入相同 partial R²，mask 和 border 也从相同顶点标签生成；不做 MNI-to-surface 投影、线性插值或平滑。它们与原生 surface 的分区边界一致，体积与表面分别使用各自空间的分区几何，不宣称两者经过重采样后逐位置等价。`maps/surface_manifest.json` 记录表面图谱路径、SHA256 及赋值方法。输出文件供手动导入Workbench出图。
 
-左右GIFTI在文件级metadata中明确写入 `AnatomicalStructurePrimary`：`lh`为 `CortexLeft`，`rh`为 `CortexRight`，覆盖两种比较的partial R²和显著mask。Workbench据此识别半球；CIFTI本身已有左右皮层的BrainModelAxis。此处仅补充结构标记，保留原有投影metadata和数值。
+左右GIFTI在文件级metadata中明确写入 `AnatomicalStructurePrimary`：`lh`为 `CortexLeft`，`rh`为 `CortexRight`，覆盖两种比较的partial R²和显著mask。Workbench据此识别半球；CIFTI本身已有左右皮层的BrainModelAxis。当前 GIFTI 另记录原生标签赋值方式；dscalar 明确保存 Dense Scalars intent。
 
 2026-11-04修复Workbench半球识别时，云端需替换 `analysis/fig03/gam_pygam/brain_maps.py` 和本README。以后全量运行及 `--step maps` 导出均自动写入标记。
 
@@ -156,7 +170,9 @@ python -m analysis.fig03.gam_pygam.run_pygam --step borders --output "outputs/fi
 python -m analysis.fig03.gam_pygam.run_pygam --step borders --output "outputs/fig03/gam_pygam_volume_232_models3_FD05"
 ```
 
-该步骤读取目标目录的 `statistics/pygam_age_comparison.csv`、`inputs/tian_combined.json` 和其中记录的 `combined_atlas.nii.gz`，将组合图谱编号以nearest方法投到fsLR32k一次，再根据parcel编号生成0/1 ROI。所用MNI到fsLR映射与现有mask一致；不会对二值ROI进行平滑或线性插值。FDR边界直接取相应比较的有限 `q < 0.05`，不是partial R²阈值，也不把旧0/1/2混合mask中的所有正值视为显著。156、157是独立人工标注；若其中某区本身通过FDR，它也会保留在对应FDR边界中。
+该步骤读取目标目录的 `statistics/pygam_age_comparison.csv`、`inputs/tian_combined.json`，并校验其中组合体积图谱的编号与指定原生表面图谱匹配。直接根据原生 dlabel 的 parcel 编号生成 0/1 ROI，不进行体积投影或平滑；与当前 surface partial R²/mask 使用相同顶点标签。FDR边界直接取相应比较的有限 `q < 0.05`，不是partial R²阈值，也不把旧0/1/2混合mask中的所有正值视为显著。156、157是独立人工标注；若其中某区本身通过FDR，它也会保留在对应FDR边界中。
+
+从旧投影版本升级时，必须先执行 `--step maps` 同时更新统计图、mask 和 border；只运行 `--step borders` 会留下旧底图，无法解决两者边界不一致。完整升级命令见 [README_SELECTED_DLABEL.md](README_SELECTED_DLABEL.md)。
 
 | `maps/borders/` 中的文件 | 内容 |
 |---|---|

@@ -1,0 +1,37 @@
+{
+  "units": 12,
+  "table_rows": 36,
+  "bh_valid_tests": {
+    "parcel": {
+      "additive_vs_baseline": 3,
+      "full_vs_additive": 3,
+      "full_vs_baseline": 3
+    },
+    "yeo": {
+      "additive_vs_baseline": 3,
+      "full_vs_additive": 3,
+      "full_vs_baseline": 3
+    },
+    "system": {
+      "additive_vs_baseline": 3,
+      "full_vs_additive": 3,
+      "full_vs_baseline": 3
+    },
+    "amygdala": {
+      "additive_vs_baseline": 3,
+      "full_vs_additive": 3,
+      "full_vs_baseline": 3
+    }
+  },
+  "inference": "Fixed five-spline-space OLS reference; independent homoskedastic Gaussian errors",
+  "main_effect": "E2 ERQ coefficient, contrast units per one raw ERQ score point; t test equals E2-vs-E1 F with one numerator df",
+  "interaction": "E3-vs-E2 block F test; no scalar interaction beta exists for g(age)",
+  "joint": "E3-vs-E1 supplementary block F test",
+  "multiplicity": "Each comparison separately within parcel432, Yeo7, system4, Juelich6; aliases not counted twice; not joint FDR across comparisons/families",
+  "all_units": "Retain nonsignificant and failed fits; inspect status; invalid results are missing, not zeros",
+  "full_model_erq_coefficient": "beta_erq_reference and SE/CI/t/p_erq/q_erq in erq_age_statistics.csv describe age-averaged ERQ slope in E3, distinct from the E2 coefficient",
+  "fit_metrics": "RSS/R2/EDF/GCV/lambdas and signed delta metrics in erq_age_statistics.csv describe the three penalized pyGAM fits; inference RSS and partial R2 use OLS reference fits",
+  "rounding": "Word is rounded for display; CSV has 17 significant digits; p/q shown as <.001 are not exact zero",
+  "bayes_factors": "not calculated for ERQ",
+  "simulated": true
+}

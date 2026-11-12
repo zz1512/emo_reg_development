@@ -46,6 +46,10 @@ The second command runs panels 3a/3d from participant volumes and a TSV design
 matrix, and panels 3b/3c/3e from the GLM result directory. Reference maps and
 the Yeo atlas default to `resources/`.
 
+For the planned cross-site PLS prediction supplement, see the
+[server sample precheck](analysis/fig03/predictive_pls/README.md) and
+[PFC definition literature audit](analysis/fig03/predictive_pls/README_PFC_LITERATURE.md).
+
 ## Figure 4
 
 ```bash

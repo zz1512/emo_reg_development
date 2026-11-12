@@ -1,0 +1,81 @@
+{
+  "surface_atlas": "E:\\emo_reg_development\\resources\\atlases\\schaefer2018\\Schaefer2018_400Parcels_7Networks_order.dlabel.nii",
+  "surface_atlas_sha256": "a567348a2ac3fb344eead6ae1768f889ebb98327985db67b9493476cd3d390d0",
+  "surface_assignment": "native Schaefer fsLR32k parcel IDs; direct per-parcel values; no volume projection or smoothing",
+  "reference_volume_only": "E:\\emo_reg_development\\resources\\atlases\\schaefer2018\\Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz",
+  "reference_volume_sha256": "359da271b5d569ae76112693ef4f303cb744c5e060306ca45eca40bddacc85ac",
+  "projection": "none; select the original surface parcel IDs directly",
+  "output_dlabel": "Schaefer400_7Networks_selected6_nativeSurface_fslr32k.dlabel.nii",
+  "nifti_intent": 3007,
+  "background": "key 0, transparent RGBA 0/0/0/0",
+  "geometry": "exact native surface vertex labels; no smoothing, dilation, erosion or relabeling; distinct atlas keys retained",
+  "display": "Outline Label Color uses embedded per-label colors. Drawing mode and width are viewer/scene properties, not dlabel label-table properties.",
+  "rois": [
+    {
+      "parcel": 152,
+      "name": "7Networks_LH_Default_Temp_4",
+      "color_hex": "#FF0000",
+      "red": 255,
+      "green": 0,
+      "blue": 0,
+      "source_voxels": 507,
+      "left_vertices": 200,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 154,
+      "name": "7Networks_LH_Default_Temp_6",
+      "color_hex": "#FF0000",
+      "red": 255,
+      "green": 0,
+      "blue": 0,
+      "source_voxels": 516,
+      "left_vertices": 224,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 156,
+      "name": "7Networks_LH_Default_Temp_8",
+      "color_hex": "#00E5FF",
+      "red": 0,
+      "green": 229,
+      "blue": 255,
+      "source_voxels": 227,
+      "left_vertices": 100,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 157,
+      "name": "7Networks_LH_Default_Temp_9",
+      "color_hex": "#00E5FF",
+      "red": 0,
+      "green": 229,
+      "blue": 255,
+      "source_voxels": 320,
+      "left_vertices": 165,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 182,
+      "name": "7Networks_LH_Default_PFC_17",
+      "color_hex": "#00FF00",
+      "red": 0,
+      "green": 255,
+      "blue": 0,
+      "source_voxels": 528,
+      "left_vertices": 198,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 185,
+      "name": "7Networks_LH_Default_PFC_20",
+      "color_hex": "#00FF00",
+      "red": 0,
+      "green": 255,
+      "blue": 0,
+      "source_voxels": 412,
+      "left_vertices": 128,
+      "right_vertices": 0
+    }
+  ]
+}

@@ -1,0 +1,77 @@
+{
+  "data_kind": "SYNTHETIC ONLY; not participant data or research results",
+  "seed": 20261108,
+  "n_subjects_per_parcel": 991,
+  "parcels": [
+    152,
+    182
+  ],
+  "y_limits": {
+    "152": [
+      -1.5,
+      1.5
+    ],
+    "182": [
+      -1.0,
+      1.0
+    ]
+  },
+  "n_outside_y_limits": {
+    "152": 0,
+    "182": 10
+  },
+  "style": {
+    "profile": "selected_parcels_red_green_v2",
+    "parcels": [
+      152,
+      182
+    ],
+    "font_family": "Arial",
+    "axis_label_pt": 24,
+    "tick_label_pt": 18,
+    "title_pt": 16,
+    "annotation_pt": 14,
+    "scatter_area_pt2": 22,
+    "scatter_alpha": 0.65,
+    "scatter_edge": "#333333, 0.4 pt",
+    "palettes": {
+      "152": {
+        "scatter": "#FF0000",
+        "curve": "#CC2020",
+        "band": "#FF0000"
+      },
+      "182": {
+        "scatter": "#00FF00",
+        "curve": "#008A20",
+        "band": "#00FF00"
+      }
+    },
+    "band_alpha": 0.18,
+    "axes_width_to_height": "3:4",
+    "age_ticks": [
+      6,
+      8,
+      10,
+      12,
+      14,
+      16,
+      18
+    ],
+    "y_limits": {
+      "152": [
+        -1.5,
+        1.5
+      ],
+      "182": [
+        -1.0,
+        1.0
+      ]
+    },
+    "outside_limits": "points retained in saved data and counted, clipped in the figure only",
+    "output": "figures/age_curves_selected/<parcel>.svg only; overview only",
+    "selection": "requested illustration, regardless of significance; original full-family q values retained",
+    "confidence_interval": "unchanged saved pointwise 95% mean CI, no numeric widening"
+  },
+  "ci": "Real GCV-selected pyGAM mean-inclusive 95% pointwise CI fitted to synthetic responses",
+  "real_data_redraw": "python -m analysis.fig03.gam_pygam.run_pygam --step curves --curve-parcels 152 154 182 185 --output outputs/fig03/gam_pygam_volume_432_models3_FD05"
+}

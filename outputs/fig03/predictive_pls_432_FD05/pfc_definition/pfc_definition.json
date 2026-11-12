@@ -1,0 +1,18 @@
+{
+  "definition_source": "Donahue2018_liberal_bilateral",
+  "rule": "midthickness_area_fraction>=0.50",
+  "citation": "Donahue et al., 2018, PNAS 115:E5183-E5192; liberal PFC is every area in supplementary Table S2",
+  "source_page": "https://pmc.ncbi.nlm.nih.gov/articles/PMC5984508/",
+  "n_pfc": 80,
+  "n_boundary": 47,
+  "n_review_band": 11,
+  "sha256": {
+    "E:\\emo_reg_development\\resources\\atlases\\schaefer2018\\Schaefer2018_400Parcels_7Networks_order.dlabel.nii": "a567348a2ac3fb344eead6ae1768f889ebb98327985db67b9493476cd3d390d0",
+    "E:\\emo_reg_development\\resources\\atlases\\donahue2018\\parcel_info_432.csv": "b1b47915451d9cc2473d4f149658b219ecf4c7e8e76321f263ddd3854745ca97",
+    "E:\\emo_reg_development\\resources\\atlases\\donahue2018\\donahue2018_liberal_pfc_lh.func.gii": "0ab38a3cff5facb3c1cfe1e8d5c973bace89598dfb1d74e9f517b55308a947d6",
+    "E:\\emo_reg_development\\resources\\atlases\\donahue2018\\donahue2018_liberal_pfc_rh.func.gii": "43cdcfe0ca1991babe0f871f9aea38b88940b3068a0370f7732c9f2a99328054",
+    "E:\\emo_reg_development\\resources\\atlases\\donahue2018\\tpl-fsLR_den-32k_hemi-L_midthickness.surf.gii": "036a8b6c84fa4b581b7ad7b36d99190b57ad6755c9d7ef7adc3e9ffc6448f1af",
+    "E:\\emo_reg_development\\resources\\atlases\\donahue2018\\tpl-fsLR_den-32k_hemi-R_midthickness.surf.gii": "9d2cef05096c433b134870456abebe7ff201cdda60ce5741d7b794018eeccda7"
+  },
+  "area": "one-third of incident midthickness face area; inflated surfaces are not used for the fraction"
+}

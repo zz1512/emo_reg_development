@@ -782,7 +782,7 @@ def _write_tian_followup(output_dir: Path, statistics: pd.DataFrame, curves: pd.
     print(f"Trajectory parcels: {result_dir / 'trajectory_parcels.csv'}")
 
 
-def rewrite_saved_curves(output_dir: Path) -> None:
+def rewrite_saved_curves(output_dir: Path, selected_parcels: list[int] | None = None) -> None:
     """Redraw Tian age-curve SVGs from saved curves and covariate residuals."""
     from analysis.fig03.gam_pygam.plot_region_age import curve_style_metadata, write_region_curves
 
@@ -814,11 +814,16 @@ def rewrite_saved_curves(output_dir: Path) -> None:
         list(note.get("marginal_parcels", [])),
         list(note.get("amygdala_parcels", [])),
         output_dir / "figures",
+        selected_parcels=selected_parcels,
     )
-    write_trajectory_lists(selected, output_dir / "statistics")
-    payload["tian_curve_style"] = curve_style_metadata()
+    if selected_parcels is None:
+        write_trajectory_lists(selected, output_dir / "statistics")
+        payload["tian_curve_style"] = curve_style_metadata()
+    else:
+        selected.to_csv(output_dir / "statistics/trajectory_parcels_selected.csv", index=False)
+        payload["selected_parcel_curve_style"] = curve_style_metadata(selected_parcels)
     metadata_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-    list_path = output_dir / "statistics" / "trajectory_units.csv"
+    list_path = output_dir / "statistics" / ("trajectory_units.csv" if selected_parcels is None else "trajectory_parcels_selected.csv")
     print(f"Trajectory parcels: {list_path}")
 
 
@@ -839,7 +844,7 @@ def rewrite_saved_maps(output_dir: Path, dlabel_path: Path,
     inputs = (output_dir / "inputs" / str(note["combined_atlas"]),
               pd.read_csv(statistics_path), list(note.get("marginal_parcels", [])), output_dir / "maps")
     if borders_only:
-        write_brain_borders(*inputs, border_surfaces=border_surfaces, wb_command=wb_command)
+        write_brain_borders(*inputs, dlabel_path, border_surfaces=border_surfaces, wb_command=wb_command)
     else:
         write_brain_maps(*inputs, dlabel_path, border_surfaces=border_surfaces, wb_command=wb_command)
 
@@ -955,9 +960,16 @@ def main() -> None:
                         help="fsLR32k border surfaces. Defaults to bundled fsaverage L/R inflated surfaces; matching midthickness surfaces are also accepted.")
     parser.add_argument("--wb-command", default="wb_command",
                         help="Workbench executable name or path for .border generation.")
+    parser.add_argument("--curve-parcels", type=int, nargs="+", choices=(152, 154, 182, 185), default=None,
+                        help="With --step curves, redraw only these Tian432 parcels in the red/green publication style.")
     parser.add_argument("--step", choices=("all", "fit", "maps", "curves", "borders"), default="all",
                         help="fit refits saved means. maps rewrites Tian maps and borders. curves redraws age SVGs. borders writes only ROI/border files. maps, curves and borders do not refit.")
     args = parser.parse_args()
+    if args.curve_parcels is not None:
+        if args.step != "curves":
+            parser.error("--curve-parcels requires --step curves; it does not select fitting or FDR families")
+        if len(set(args.curve_parcels)) != len(args.curve_parcels):
+            parser.error("--curve-parcels must not contain duplicate parcel IDs")
     if args.reuse_inputs is not None and args.step != "all":
         parser.error("--reuse-inputs is used with --step all (the default)")
     from analysis.fig03.gam_nested.run_nested import meanfd_directory_suffix, subset_saved_inputs
@@ -978,7 +990,7 @@ def main() -> None:
         return
     if args.step == "curves":
         for one_output in output_dirs:
-            rewrite_saved_curves(one_output)
+            rewrite_saved_curves(one_output, args.curve_parcels)
         return
     stat_utils = load_historical_stats()
     if args.reuse_inputs is not None:

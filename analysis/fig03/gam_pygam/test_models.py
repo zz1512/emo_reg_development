@@ -110,6 +110,61 @@ def _write_inputs(input_dir: Path, n_parcels: int = 2,
         }), encoding="utf-8")
 
 
+class SelectedCurveRedrawTests(unittest.TestCase):
+    def test_requested_four_parcels_use_fixed_limits_svg_only_and_preserve_data(self):
+        with tempfile.TemporaryDirectory(prefix="pygam-selected-curves-") as temporary:
+            root = Path(temporary)
+            _write_inputs(root / "inputs", n_parcels=432, n_cortical=400)
+            result_dir = root / "statistics"
+            result_dir.mkdir()
+            parcels = [152, 154, 182, 185]
+            statistics = pd.DataFrame({"dimension": "parcel", "name": parcels,
+                                       "q_m3_vs_m1": .8, "q_m3_vs_m2": .9})
+            statistics.to_csv(result_dir / "pygam_age_comparison.csv", index=False)
+            grid = np.linspace(6, 18.8, 30)
+            curves = pd.concat([pd.DataFrame({"dimension": "parcel", "name": str(parcel), "age": grid,
+                                              "effect": .02 * (grid - 12), "ci_low": .02 * (grid - 12) - .05,
+                                              "ci_high": .02 * (grid - 12) + .05}) for parcel in parcels])
+            residuals = pd.concat([pd.DataFrame({"dimension": "parcel", "name": str(parcel), "age": [6, 10, 14, 18.8],
+                                                 "residual": [-2.2, -.4, .4, 2.4]}) for parcel in parcels])
+            curves.to_csv(result_dir / "pygam_curves.csv", index=False)
+            residuals.to_csv(result_dir / "covariate_residuals.csv", index=False)
+            (result_dir / "trajectory_units.csv").write_text("original trajectory list", encoding="utf-8")
+            original_dir = root / "figures/age_curves"
+            original_dir.mkdir(parents=True)
+            (original_dir / "parcel_0152.svg").write_text("original figure", encoding="utf-8")
+            selected_dir = root / "figures/age_curves_selected"
+            selected_dir.mkdir()
+            (selected_dir / "parcel_0152.png").write_bytes(b"old generated PNG")
+            (root / "run_metadata.json").write_text(json.dumps({
+                "age_effect_definition": runner.AGE_EFFECT_DEFINITION,
+                "age_ci_definition": runner.AGE_CI_DEFINITION,
+                "tian_curve_style": {"original_style": True}}), encoding="utf-8")
+            before = {path.name: path.read_bytes() for path in result_dir.iterdir()}
+            arguments = ["run_pygam", "--step", "curves", "--curve-parcels", *map(str, parcels), "--output", str(root)]
+            with patch.object(sys, "argv", arguments), patch.object(
+                    runner, "load_historical_stats", side_effect=AssertionError("No refitting for style changes")), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                runner.main()
+            selected = pd.read_csv(result_dir / "trajectory_parcels_selected.csv")
+            self.assertEqual(selected["parcel"].tolist(), parcels)
+            self.assertTrue(selected["reason"].str.contains("requested_for_figure").all())
+            self.assertTrue((selected["q_m3_vs_m1"] == .8).all())
+            self.assertEqual(selected["n_outside_y_limits"].tolist(), [2, 2, 2, 2])
+            self.assertEqual(selected["y_min"].tolist(), [-1.5, -1.5, -1.0, -1.0])
+            self.assertEqual(selected["y_max"].tolist(), [1.5, 1.5, 1.0, 1.0])
+            expected = {f"parcel_{parcel:04d}.svg" for parcel in parcels}
+            self.assertEqual({path.name for path in (root / "figures/age_curves_selected").glob("*.svg")}, expected)
+            self.assertEqual(list(selected_dir.glob("*.png")), [])
+            self.assertFalse((root / "figures/age_curves_zoom").exists())
+            self.assertEqual((original_dir / "parcel_0152.svg").read_text(), "original figure")
+            for name, contents in before.items():
+                self.assertEqual((result_dir / name).read_bytes(), contents)
+            metadata = json.loads((root / "run_metadata.json").read_text())
+            self.assertEqual(metadata["tian_curve_style"], {"original_style": True})
+            self.assertEqual(metadata["selected_parcel_curve_style"]["parcels"], parcels)
+
+
 @unittest.skipUnless(importlib.util.find_spec("pygam") is not None, "pygam is not installed")
 class ThreeModelStatisticsTests(unittest.TestCase):
     @classmethod
@@ -368,26 +423,14 @@ class SavedInputContractTests(unittest.TestCase):
 class PipelineOutputTests(unittest.TestCase):
     def test_reuse_csv_figures_maps_and_redraw_for_both_versions(self):
         import nibabel as nib
-        from nibabel.cifti2.cifti2_axes import BrainModelAxis, LabelAxis
         from analysis.fig03.gam_pygam import brain_maps
-
-        def project(image, method):
-            # The spatial transform is deliberately replaced: this test checks
-            # export wiring and file formats without downloading registration.
-            self.assertIn(method, ("linear", "nearest"))
-            data = np.full(8, 1.0 if method == "nearest" else 0.123, dtype=np.float32)
-            return tuple(nib.GiftiImage(darrays=[nib.gifti.GiftiDataArray(data)]) for _ in range(2))
 
         with tempfile.TemporaryDirectory(prefix="pygam-pipeline-") as temporary:
             root = Path(temporary)
-            brain = (BrainModelAxis.from_surface(np.arange(8), 8, "CortexLeft")
-                     + BrainModelAxis.from_surface(np.arange(8), 8, "CortexRight"))
-            template = root / "synthetic.dlabel.nii"
-            nib.save(nib.Cifti2Image(np.ones((1, 16), dtype=np.int32),
-                                   (LabelAxis(["synthetic"], [{1: ("region", (1, 0, 0, 1))}]), brain)),
-                     str(template))
             for n_cortical in (200, 400):
                 with self.subTest(n_cortical=n_cortical):
+                    template = brain_maps.SURFACE_DIR.parents[1] / "atlases/schaefer2018" / (
+                        f"Schaefer2018_{n_cortical}Parcels_7Networks_order.dlabel.nii")
                     n_parcels = n_cortical + 32
                     source = root / f"source_{n_parcels}"
                     _write_inputs(source, n_parcels=n_parcels, n_cortical=n_cortical,
@@ -401,7 +444,6 @@ class PipelineOutputTests(unittest.TestCase):
                     with patch.object(sys, "argv", arguments), \
                             patch.object(runner, "load_historical_stats", return_value=_ScipyBH()), \
                             patch.object(runner, "_fit_one", side_effect=_synthetic_fit()), \
-                            patch.object(brain_maps, "_project_volume", side_effect=project), \
                             patch.object(brain_maps, "write_brain_borders") as border_export, \
                             contextlib.redirect_stdout(io.StringIO()):
                         runner.main()
@@ -420,7 +462,7 @@ class PipelineOutputTests(unittest.TestCase):
                     self.assertTrue((units["zoom_y_min"] < units["zoom_y_max"]).all())
                     for filename in units["zoom_figure_file"]:
                         self.assertTrue((destination / "figures" / filename).is_file())
-                    self.assertEqual(len(list((destination / "maps").iterdir())), 17)
+                    self.assertEqual(len(list((destination / "maps").iterdir())), 18)
                     metadata = json.loads((destination / "run_metadata.json").read_text())
                     self.assertEqual(metadata["counts"]["n_subjects"], 15)
                     self.assertEqual(metadata["counts"]["meanfd_max"], 0.5)
@@ -433,14 +475,13 @@ class PipelineOutputTests(unittest.TestCase):
                         mapped = nib.load(str(destination / "maps" / f"partial_r2_{comparison}_volume_MNI152.nii.gz"))
                         self.assertEqual(mapped.get_data_dtype(), np.dtype("float32"))
                         scalar = nib.load(str(destination / "maps" / f"partial_r2_{comparison}_fslr32k.dscalar.nii"))
-                        self.assertEqual(scalar.shape, (1, 16))
+                        self.assertEqual(scalar.shape, nib.load(template).shape)
                     # Redraw commands must work without fitting any model.
                     for step in ("curves", "maps", "borders"):
                         arguments = ["run_pygam", "--step", step, "--output", str(destination),
                                      "--schaefer-atlas", str(template)]
                         with patch.object(sys, "argv", arguments), \
                                 patch.object(runner, "load_historical_stats", side_effect=AssertionError("unexpected refit")), \
-                                patch.object(brain_maps, "_project_volume", side_effect=project), \
                                 patch.object(brain_maps, "write_brain_borders") as border_export, \
                                 contextlib.redirect_stdout(io.StringIO()):
                             runner.main()

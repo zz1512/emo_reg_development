@@ -1,0 +1,91 @@
+{
+  "source_volume": "E:\\emo_reg_development\\resources\\atlases\\schaefer2018\\Schaefer2018_400Parcels_7Networks_order_FSLMNI152_2mm.nii.gz",
+  "source_sha256": "359da271b5d569ae76112693ef4f303cb744c5e060306ca45eca40bddacc85ac",
+  "brain_axis_template_only": "E:\\emo_reg_development\\resources\\atlases\\schaefer2018\\Schaefer2018_400Parcels_7Networks_order.dlabel.nii",
+  "template_sha256": "a567348a2ac3fb344eead6ae1768f889ebb98327985db67b9493476cd3d390d0",
+  "projection": "neuromaps.transforms.mni152_to_fslr(method='nearest', fslr_density='32k')",
+  "neuromaps_version": "0.0.7",
+  "regfusion": [
+    {
+      "file": "E:\\emo_reg_development\\resources\\neuromaps_cache\\atlases\\regfusion\\tpl-MNI152_space-fsLR_den-32k_hemi-L_regfusion.txt",
+      "sha256": "c12adc7bbdf7f0806973ce2aa5ac6f67dce633bc8abc656fa6a84571017b5abb"
+    },
+    {
+      "file": "E:\\emo_reg_development\\resources\\neuromaps_cache\\atlases\\regfusion\\tpl-MNI152_space-fsLR_den-32k_hemi-R_regfusion.txt",
+      "sha256": "832943043d61fd970acedf8e602631bc60b7ccd6d200f7f3ebf35ea8d10eacba"
+    }
+  ],
+  "output_dlabel": "Schaefer400_7Networks_selected6_fromMNI_fslr32k.dlabel.nii",
+  "nifti_intent": 3007,
+  "background": "key 0, transparent RGBA 0/0/0/0",
+  "geometry": "no smoothing, dilation, erosion or relabeling; distinct atlas keys retained",
+  "display": "Outline Label Color uses embedded per-label colors. Drawing mode and width are viewer/scene properties, not dlabel label-table properties.",
+  "rois": [
+    {
+      "parcel": 152,
+      "name": "7Networks_LH_Default_Temp_4",
+      "color_hex": "#FF0000",
+      "red": 255,
+      "green": 0,
+      "blue": 0,
+      "source_voxels": 507,
+      "left_vertices": 208,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 154,
+      "name": "7Networks_LH_Default_Temp_6",
+      "color_hex": "#FF0000",
+      "red": 255,
+      "green": 0,
+      "blue": 0,
+      "source_voxels": 516,
+      "left_vertices": 209,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 156,
+      "name": "7Networks_LH_Default_Temp_8",
+      "color_hex": "#00E5FF",
+      "red": 0,
+      "green": 229,
+      "blue": 255,
+      "source_voxels": 227,
+      "left_vertices": 98,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 157,
+      "name": "7Networks_LH_Default_Temp_9",
+      "color_hex": "#00E5FF",
+      "red": 0,
+      "green": 229,
+      "blue": 255,
+      "source_voxels": 320,
+      "left_vertices": 166,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 182,
+      "name": "7Networks_LH_Default_PFC_17",
+      "color_hex": "#00FF00",
+      "red": 0,
+      "green": 255,
+      "blue": 0,
+      "source_voxels": 528,
+      "left_vertices": 53,
+      "right_vertices": 0
+    },
+    {
+      "parcel": 185,
+      "name": "7Networks_LH_Default_PFC_20",
+      "color_hex": "#00FF00",
+      "red": 0,
+      "green": 255,
+      "blue": 0,
+      "source_voxels": 412,
+      "left_vertices": 162,
+      "right_vertices": 0
+    }
+  ]
+}

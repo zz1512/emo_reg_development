@@ -1,0 +1,43 @@
+{
+  "analysis": "liberal_pfc_pls_main_v1",
+  "date_locked": "2026-11-11",
+  "sample": "Tian432 FD<=0.5 inputs from the age analysis; success adds a valid reappraisal_success score",
+  "pfc_definition": "Donahue2018_liberal_bilateral",
+  "pfc_rule": "midthickness_area_fraction>=0.50",
+  "tian_assignment": "parcels 401-432 are non-PFC",
+  "tasks": {
+    "success": {
+      "role": "primary",
+      "target": "reappraisal_success",
+      "covariates": ["intercept", "age_spline_4", "gender", "parent_edu", "meanFD"]
+    },
+    "age": {
+      "role": "secondary",
+      "target": "age",
+      "covariates": ["intercept", "gender", "parent_edu", "meanFD"]
+    }
+  },
+  "models": ["M0_covariates", "M1_PFC", "M2_distributed432", "M3_nonPFC"],
+  "primary_comparison": "M2_distributed432-M1_PFC",
+  "support_comparisons": [
+    "M1_PFC-M0_covariates",
+    "M2_distributed432-M0_covariates",
+    "M3_nonPFC-M0_covariates",
+    "M2_distributed432-M3_nonPFC"
+  ],
+  "outer": "LOSO",
+  "inner": "LOSO",
+  "k_grid_max": 10,
+  "k_tie_tolerance": 1e-10,
+  "k_tie_rule": "smaller",
+  "near_zero_residual_std": 1e-12,
+  "sklearn_requested": "1.7.2",
+  "spline": {"n_knots": 3, "degree": 3, "knots": "quantile", "include_bias": false, "extrapolation": "linear"},
+  "bootstrap": {
+    "B": 2000,
+    "seed": 20261111,
+    "valid_fraction_min": 0.95,
+    "valid_n_min": 1000,
+    "percentiles": [2.5, 97.5]
+  }
+}

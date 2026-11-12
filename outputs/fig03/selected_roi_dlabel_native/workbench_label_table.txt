@@ -1,0 +1,12 @@
+7Networks_LH_Default_Temp_4
+152 255 0 0 255
+7Networks_LH_Default_Temp_6
+154 255 0 0 255
+7Networks_LH_Default_Temp_8
+156 0 229 255 255
+7Networks_LH_Default_Temp_9
+157 0 229 255 255
+7Networks_LH_Default_PFC_17
+182 0 255 0 255
+7Networks_LH_Default_PFC_20
+185 0 255 0 255

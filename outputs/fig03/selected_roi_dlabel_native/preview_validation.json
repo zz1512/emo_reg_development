@@ -1,0 +1,50 @@
+{
+  "source_surface": "E:\\emo_reg_development\\resources\\atlases\\schaefer2018\\Schaefer2018_400Parcels_7Networks_order.dlabel.nii",
+  "dlabel": "E:\\emo_reg_development\\outputs\\fig03\\selected_roi_dlabel_native\\Schaefer400_7Networks_selected6_nativeSurface_fslr32k.dlabel.nii",
+  "selected_matches_native_at_every_vertex": true,
+  "note": "Real anatomical atlas preview; no subject data or simulated effect sizes; not a Workbench scene.",
+  "comparisons": [
+    {
+      "parcel": 152,
+      "old_volume_projected_vertices": 208,
+      "native_vertices": 200,
+      "old_native_overlap": 184,
+      "new_native_mismatches": 0
+    },
+    {
+      "parcel": 154,
+      "old_volume_projected_vertices": 209,
+      "native_vertices": 224,
+      "old_native_overlap": 182,
+      "new_native_mismatches": 0
+    },
+    {
+      "parcel": 156,
+      "old_volume_projected_vertices": 98,
+      "native_vertices": 100,
+      "old_native_overlap": 84,
+      "new_native_mismatches": 0
+    },
+    {
+      "parcel": 157,
+      "old_volume_projected_vertices": 166,
+      "native_vertices": 165,
+      "old_native_overlap": 144,
+      "new_native_mismatches": 0
+    },
+    {
+      "parcel": 182,
+      "old_volume_projected_vertices": 53,
+      "native_vertices": 198,
+      "old_native_overlap": 51,
+      "new_native_mismatches": 0
+    },
+    {
+      "parcel": 185,
+      "old_volume_projected_vertices": 162,
+      "native_vertices": 128,
+      "old_native_overlap": 89,
+      "new_native_mismatches": 0
+    }
+  ]
+}

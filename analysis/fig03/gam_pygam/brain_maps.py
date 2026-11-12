@@ -1,4 +1,4 @@
-"""Comparison-specific partial R² volumes, masks, and fsLR cortical copies.
+"""Comparison-specific volumes and maps on native Schaefer fsLR labels.
 
 The volumes keep cortex and Tian subcortex. Each comparison's mask uses 1
 for its BH q < 0.05 and 2 for manually selected marginal parcels. Marginal
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import hashlib
 import shutil
 import subprocess
 import xml.etree.ElementTree as ET
@@ -20,7 +21,7 @@ import nibabel as nib
 import numpy as np
 import pandas as pd
 from nibabel.cifti2 import Cifti2Image
-from nibabel.cifti2.cifti2_axes import BrainModelAxis, ScalarAxis
+from nibabel.cifti2.cifti2_axes import BrainModelAxis, LabelAxis, ScalarAxis
 
 MASK_SIGNIFICANT = 1
 MASK_MARGINAL = 2
@@ -50,17 +51,57 @@ def paint_statistic_and_mask(labels: np.ndarray, partial_r2: dict[int, float],
     return volume, mask
 
 
-def _project_volume(image: nib.spatialimages.SpatialImage, method: str):
-    from neuromaps.transforms import mni152_to_fslr
+def load_surface_atlas(dlabel_path: Path) -> tuple[nib.Cifti2Image, tuple[np.ndarray, np.ndarray]]:
+    """Read the actual native parcel assignments, including a zero medial wall."""
+    image = nib.load(str(dlabel_path))
+    if not isinstance(image, nib.Cifti2Image) or image.shape[0] != 1:
+        raise ValueError("Surface atlas must be a single-map Schaefer dlabel")
+    label_axis, brain_axis = (image.header.get_axis(index) for index in (0, 1))
+    structures = ("CIFTI_STRUCTURE_CORTEX_LEFT", "CIFTI_STRUCTURE_CORTEX_RIGHT")
+    if not isinstance(label_axis, LabelAxis) or not isinstance(brain_axis, BrainModelAxis):
+        raise ValueError("Surface atlas requires label and brain-model axes")
+    if (set(brain_axis.nvertices) != set(structures) or np.any(brain_axis.volume_mask)
+            or any(brain_axis.nvertices[name] != 32492 for name in structures)):
+        raise ValueError("Surface atlas requires left and right fsLR32k cortical brain models")
+    values = np.asarray(image.dataobj)[0]
+    if not np.isfinite(values).all() or not np.array_equal(values, np.rint(values)) or np.any(values < 0):
+        raise ValueError("Surface atlas must contain finite nonnegative integer parcel IDs")
+    if not set(np.unique(values)) <= set(label_axis.label[0]):
+        raise ValueError("Surface atlas contains parcel IDs missing from its label table")
+    labels = {name: np.zeros(32492, dtype=np.int32) for name in structures}
+    for name, section, axis in brain_axis.iter_structures():
+        labels[name][axis.vertex] = values[section]
+    return image, tuple(labels[name] for name in structures)
 
-    try:
-        return mni152_to_fslr(image, fslr_density="32k", method=method)
-    except TypeError as exc:
-        raise RuntimeError(
-            f"fsLR projection failed with interpolation={method!r}. "
-            "Use a neuromaps mni152_to_fslr implementation accepting the method argument. "
-            "The requested interpolation was not replaced by a default."
-        ) from exc
+
+def _native_labels_for_volume(dlabel_path: Path, atlas_path: Path):
+    """Reject a different cortical resolution instead of mislabeling results."""
+    image, labels = load_surface_atlas(dlabel_path)
+    cortical = set(np.unique(np.concatenate(labels))) - {0}
+    volume = np.asarray(nib.load(str(atlas_path)).dataobj)
+    source = set(np.unique(volume)) - {0}
+    n_cortical = len(cortical)
+    if (cortical != set(range(1, n_cortical + 1)) or not cortical <= source
+            or source - cortical not in (set(), set(range(n_cortical + 1, n_cortical + 33)))):
+        raise ValueError("Native surface atlas parcel IDs do not match the cortical/combined volume atlas; check --schaefer-atlas")
+    return image, labels
+
+
+def _surface_provenance(dlabel_path: Path) -> dict:
+    return {"surface_atlas": str(dlabel_path.resolve()),
+            "surface_atlas_sha256": hashlib.sha256(dlabel_path.read_bytes()).hexdigest(),
+            "surface_assignment": "native Schaefer fsLR32k parcel IDs; direct per-parcel values; no volume projection or smoothing"}
+
+
+def _metric_image(values: np.ndarray, hemisphere: str, name: str) -> nib.GiftiImage:
+    structure = "CortexLeft" if hemisphere == "lh" else "CortexRight"
+    array = nib.gifti.GiftiDataArray(np.asarray(values, dtype=np.float32), intent="NIFTI_INTENT_SHAPE")
+    array.meta["Name"] = name
+    array.meta["AnatomicalStructurePrimary"] = structure
+    image = nib.GiftiImage(darrays=[array])
+    image.meta["AnatomicalStructurePrimary"] = structure
+    image.meta["SurfaceAssignment"] = "Native Schaefer parcel IDs; no spatial interpolation"
+    return image
 
 
 def _gifti_matrix(path: Path) -> np.ndarray:
@@ -109,6 +150,7 @@ def _write_cifti(left_path: Path, right_path: Path, output_path: Path,
             )
         data[:, cifti_slice] = matrix[:, vertices]
     image = Cifti2Image(data, (ScalarAxis([map_name] * n_maps), brain_axis))
+    image.nifti_header.set_intent(3006)  # NIFTI_INTENT_CONNECTIVITY_DENSE_SCALARS
     nib.save(image, str(output_path))
 
 
@@ -185,12 +227,12 @@ def _color_border(path: Path, rgb: tuple[float, float, float]) -> int:
 
 
 def write_brain_borders(atlas_path: Path, statistics: pd.DataFrame, marginal: list[int],
-                        output_dir: Path, border_surfaces: tuple[Path, Path] | None = None,
+                        output_dir: Path, dlabel_path: Path,
+                        border_surfaces: tuple[Path, Path] | None = None,
                         wb_command: str = "wb_command") -> None:
     """Write independent FDR and marginal ROIs/borders without refitting.
 
-    Nearest-neighbor projection of atlas IDs is shared across all binary ROIs:
-    applying a parcel-membership mask commutes with this discrete sampling.
+    Native surface parcel IDs are shared with the statistic maps and dlabel.
     Each marginal parcel gets its own column so adjacent 156/157 retain their
     individual outlines, in a file separate from the two FDR comparisons.
     """
@@ -213,19 +255,11 @@ def write_brain_borders(atlas_path: Path, statistics: pd.DataFrame, marginal: li
         suffix = "_".join(map(str, marginal_ids))
         rois.append((f"marginal_{suffix}", f"Manual_marginal_{suffix}", MARGINAL_BORDER_RGB,
                      [(f"Manual_marginal_parcel_{parcel}", {parcel}) for parcel in marginal_ids]))
-    atlas = nib.load(str(atlas_path))
-    projected = tuple(_project_volume(atlas, "nearest"))
-    if len(projected) != 2:
-        raise ValueError("Border projection requires left and right fsLR metrics")
-    labels = []
-    for hemi, metric, surface in zip(("lh", "rh"), projected, surfaces):
-        if len(metric.darrays) != 1:
-            raise ValueError("The projected parcel atlas must have exactly one metric column")
-        values = np.asarray(metric.darrays[0].data).reshape(-1)
+    _, labels = _native_labels_for_volume(dlabel_path, atlas_path)
+    for hemi, values, surface in zip(("lh", "rh"), labels, surfaces):
         points, _ = _surface_mesh(surface, hemi)
-        if len(values) != len(points) or not np.isfinite(values).all() or not np.allclose(values, np.rint(values)):
-            raise ValueError(f"Invalid nearest-neighbor parcel projection for {hemi}; requires matching fsLR32k vertices and integer labels")
-        labels.append(np.rint(values).astype(np.int32))
+        if len(values) != len(points):
+            raise ValueError(f"Native atlas and {hemi} surface require matching fsLR32k vertices")
     border_dir = output_dir / "borders"
     border_dir.mkdir(parents=True, exist_ok=True)
     records = []
@@ -260,7 +294,8 @@ def write_brain_borders(atlas_path: Path, statistics: pd.DataFrame, marginal: li
     (border_dir / "border_manifest.json").write_text(json.dumps({
         "definition": "FDR borders use q < 0.05 directly, including any significant marginal parcel; manual marginal borders are independent annotations.",
         "source_atlas": str(atlas_path.resolve()),
-        "projection": "nearest-neighbor parcel IDs, then binary membership; same MNI-to-fsLR32k mapping as the masks",
+        **_surface_provenance(dlabel_path),
+        "projection": "none; binary ROI membership of native surface parcel IDs",
         "colors": {"fdr_significant": "#FF0000", "manual_marginal": "#00E5FF"},
         "workbench_display": "Display Borders; Polylines; Coloring = Class (or Name) to retain red FDR and bright cyan marginal colors; Line Diameter 2-3 px. Standard Color overrides both colors. Width is a viewer/scene setting.",
         "empty_rois": "A hemisphere with no ROI vertices produces a valid empty border file; see vertices_per_roi and border_parts.",
@@ -281,8 +316,9 @@ def write_brain_maps(atlas_path: Path, statistics: pd.DataFrame, marginal: list[
     marginal_ids = {int(parcel) for parcel in marginal}
     atlas = nib.load(str(atlas_path))
     labels = np.rint(np.asarray(atlas.get_fdata())).astype(np.int32)
+    _, surface_labels = _native_labels_for_volume(dlabel_path, atlas_path)
     output_dir.mkdir(parents=True, exist_ok=True)
-    projections = []
+    surface_maps = []
     for comparison, q_column, partial_column in comparisons:
         partial_values = parcels[partial_column].to_numpy(dtype=float)
         q_values = parcels[q_column].to_numpy(dtype=float)
@@ -293,17 +329,19 @@ def write_brain_maps(atlas_path: Path, statistics: pd.DataFrame, marginal: list[
                        if np.isfinite(q_value) and q_value < 0.05}
         partial_volume, mask_volume = paint_statistic_and_mask(
             labels, partial, significant, marginal_ids)
-        for kind, volume, method, description in (
-            ("partial_r2", partial_volume, "linear", "partial R2"),
-            ("significance_mask", mask_volume, "nearest", "significance mask"),
-        ):
+        painted = [paint_statistic_and_mask(vertex_labels, partial, significant, marginal_ids)
+                   for vertex_labels in surface_labels]
+        for column, (kind, volume, description) in enumerate((
+            ("partial_r2", partial_volume, "partial R2"),
+            ("significance_mask", mask_volume, "significance mask"),
+        )):
             stem = f"{kind}_{comparison}"
             volume_path = output_dir / f"{stem}_volume_MNI152.nii.gz"
             image = nib.Nifti1Image(volume, atlas.affine, atlas.header)
             image.set_data_dtype(volume.dtype)
             nib.save(image, str(volume_path))
             print(f"Brain volume: {volume_path}")
-            projections.append((stem, volume_path, method, f"{comparison} {description}"))
+            surface_maps.append((stem, [hemi[column] for hemi in painted], f"{comparison} {description}"))
     (output_dir / "mask_values.txt").write_text(
         "\n".join([
             "comparisons written: " + ", ".join(row[0] for row in comparisons),
@@ -314,29 +352,30 @@ def write_brain_maps(atlas_path: Path, statistics: pd.DataFrame, marginal: list[
             "Manual marginal annotation takes priority over value 1 in both comparisons.",
             "manually selected marginal parcels: " + (", ".join(str(parcel) for parcel in marginal) or "none"),
             "*_volume_MNI152.nii.gz keeps every parcel, including Tian subcortex, on the combined atlas grid.",
-            "*_fslr32k_lh/rh.func.gii and *_fslr32k.dscalar.nii are cortical projections.",
+            "*_fslr32k_lh/rh.func.gii and *_fslr32k.dscalar.nii use native Schaefer cortical parcel labels.",
             "GIFTI AnatomicalStructurePrimary: lh = CortexLeft; rh = CortexRight.",
             "Noncortical grayordinates in the dscalar stay 0; subcortical results remain in the volumes.",
-            "Projection interpolation: partial_r2 = linear; significance_mask = nearest.",
+            "Surface assignment: direct parcel-ID lookup on the native dlabel; no volume projection, interpolation, or smoothing.",
+            "Surface parcel boundaries intentionally follow the native surface atlas, not a resampling of the MNI volume atlas.",
             "borders/ has independent binary FDR ROIs (q < 0.05 directly, red) and manual marginal ROIs (bright cyan), plus .border files.",
             "The combined 0/1/2 mask is not used as a binary border ROI; adjacent marginal parcels keep separate columns/borders.",
         ]) + "\n",
         encoding="utf-8",
     )
-    # Write every volume before projection so a surface dependency failure
-    # still leaves both comparisons available for volume-space inspection.
-    for stem, volume_path, method, map_name in projections:
-        projected = _project_volume(nib.load(str(volume_path)), method)
+    for stem, arrays, map_name in surface_maps:
         giftis = []
-        for hemi, metric in zip(("lh", "rh"), projected):
+        for hemi, values in zip(("lh", "rh"), arrays):
             path = output_dir / f"{stem}_fslr32k_{hemi}.func.gii"
-            # Workbench reads the GIFTI file-level structure, not the lh/rh
-            # filename suffix. Preserve other metadata from the projection.
-            metric.meta["AnatomicalStructurePrimary"] = (
-                "CortexLeft" if hemi == "lh" else "CortexRight")
+            metric = _metric_image(values, hemi, map_name)
             nib.save(metric, str(path))
             giftis.append(path)
         dscalar = output_dir / f"{stem}_fslr32k.dscalar.nii"
         _write_cifti(giftis[0], giftis[1], dscalar, dlabel_path, map_name)
         print(f"Brain map: {dscalar}")
-    write_brain_borders(atlas_path, statistics, marginal, output_dir, border_surfaces, wb_command)
+    (output_dir / "surface_manifest.json").write_text(json.dumps({
+        **_surface_provenance(dlabel_path), "volume_atlas": str(atlas_path.resolve()),
+        "comparisons": [row[0] for row in comparisons],
+        "scope": "Cortex only; MNI volume outputs retain all cortical and Tian subcortical results.",
+        "statistics": "Existing per-parcel values and q thresholds are unchanged; only surface geometry assignment changed.",
+    }, indent=2), encoding="utf-8")
+    write_brain_borders(atlas_path, statistics, marginal, output_dir, dlabel_path, border_surfaces, wb_command)

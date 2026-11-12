@@ -1,0 +1,63 @@
+{
+  "definition_source": "Buhle2014_reappraisal_PFC",
+  "rule": "schaefer2mm_voxel_fraction>=0.25_inside_buhle_z2.3_and_harvard_oxford_pfc",
+  "citation": "Buhle, Silvers, Wager et al., 2014, Cerebral Cortex 24:2981-2990",
+  "map": "CANlab public consensus z map for that meta-analysis",
+  "z_threshold": 2.3,
+  "anatomical_gate": "Harvard-Oxford frontal pole, SFG, MFG, IFG, paracingulate, anterior cingulate",
+  "excluded_from_same_map": "parietal, lateral temporal, insula, and the vmPFC/orbital cortex that the paper did not treat as the reappraisal implementation network",
+  "n_pfc": 10,
+  "parcels": [
+    {
+      "parcel": 107,
+      "name": "7Networks_LH_SalVentAttn_Med_1",
+      "coverage_fraction": 0.570694087403599
+    },
+    {
+      "parcel": 148,
+      "name": "7Networks_LH_Cont_PFCmp_1",
+      "coverage_fraction": 0.41228070175438597
+    },
+    {
+      "parcel": 175,
+      "name": "7Networks_LH_Default_PFC_10",
+      "coverage_fraction": 0.6549019607843137
+    },
+    {
+      "parcel": 182,
+      "name": "7Networks_LH_Default_PFC_17",
+      "coverage_fraction": 0.2784090909090909
+    },
+    {
+      "parcel": 185,
+      "name": "7Networks_LH_Default_PFC_20",
+      "coverage_fraction": 0.5631067961165048
+    },
+    {
+      "parcel": 189,
+      "name": "7Networks_LH_Default_PFC_24",
+      "coverage_fraction": 0.44844124700239807
+    },
+    {
+      "parcel": 352,
+      "name": "7Networks_RH_Cont_PFCl_12",
+      "coverage_fraction": 0.31861804222648754
+    },
+    {
+      "parcel": 353,
+      "name": "7Networks_RH_Cont_PFCl_13",
+      "coverage_fraction": 0.25263157894736843
+    },
+    {
+      "parcel": 361,
+      "name": "7Networks_RH_Cont_PFCmp_2",
+      "coverage_fraction": 0.2740963855421687
+    },
+    {
+      "parcel": 378,
+      "name": "7Networks_RH_Default_PFCv_4",
+      "coverage_fraction": 0.2548262548262548
+    }
+  ],
+  "sha256": "2d7ac4daa5725cd554cf79d3b4c07b184ae6e8b67229f26cc67740e0ff6f97d0"
+}
