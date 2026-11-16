@@ -1,0 +1,5 @@
+﻿dimension,analysis_scope,expected_units,comparison,bf_name,n_valid,n_invalid,n_support_first,n_support_second,n_inconclusive,n_strong_first,n_strong_second,n_prior_direction_stable,n_obs_min,n_obs_max,bf10_min,bf10_max,log_bf10_min,log_bf10_max
+parcel,Whole-brain parcels,432,m2_vs_m1,BF21,432,0,135,75,222,78,0,318,120,120,0.18074772474980716,29245.477927763655,-1.7106530058520497,10.283480239947856
+yeo,Yeo networks,7,m2_vs_m1,BF21,7,0,0,2,5,0,0,4,120,120,0.2142488547614452,2.1676749141019367,-1.5406170668560129,0.77365512496421363
+system,Systems,4,m2_vs_m1,BF21,4,0,1,1,2,1,0,3,120,120,0.20447483392887858,73.04657531404807,-1.5873103725444413,4.2910972557020957
+amygdala,Amygdala subdivisions,6,m2_vs_m1,BF21,6,0,3,0,3,3,0,4,120,120,1.1969163355480832,25.043597621946915,0.17974852901867555,3.2206182109095138

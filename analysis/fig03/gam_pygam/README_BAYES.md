@@ -104,6 +104,17 @@ python -m analysis.fig03.gam_pygam.result_tables \
   --output "outputs/fig03/gam_pygam_volume_432_models3_FD05/bayes"
 ```
 
+## 只提取汇报表，不重新积分
+
+```bash
+python -m analysis.fig03.gam_pygam.summarize_bayes \
+  --analysis-dir "outputs/fig03/gam_pygam_volume_432_models3_FD05/bayes"
+```
+
+432版输出8行主表（4范围×BF31/BF32）和4行BF21补充表，232版相应为2行和1行；另保留全部明细。默认写入`bayes/reviewer_summary/`。表中计数表示模型证据，不是FDR显著数。字段与命令见[BF和PLS汇报表说明](../README_REVIEWER_TABLES.md)。
+
+只需此前绘图的四区加156/157时，在命令末尾加`--parcels 152 154 182 185 156 157`。会另写`bayes/reviewer_selected_parcels/`，输出6行逐区BF表及按实际数值生成的英文段落，比较标题直接使用模型名称。不会用全脑计数代替这些区域的具体结果。
+
 ## 测试
 
 ```bash

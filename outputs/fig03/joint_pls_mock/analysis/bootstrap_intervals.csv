@@ -1,0 +1,11 @@
+﻿scheme,comparison,ci_low,ci_high,n_bootstrap_valid,complete,use
+joint,distributed_minus_covariates,0.59036563700097056,0.64223829950190781,2,True,stability only; no permutation p inferred
+joint,distributed_minus_nonpfc,-0.0061866323196813327,-0.0020084553815879675,2,True,stability only; no permutation p inferred
+joint,distributed_minus_pfc,0.37227985283520049,0.41394049168654401,2,True,stability only; no permutation p inferred
+joint,nonpfc_minus_covariates,0.59655226932065197,0.64424675488349581,2,True,stability only; no permutation p inferred
+joint,pfc_minus_covariates,0.17642514531442641,0.26995844666670721,2,True,stability only; no permutation p inferred
+shared,distributed_minus_covariates,0.78017841119703746,0.79399734317670934,2,True,stability only; no permutation p inferred
+shared,distributed_minus_nonpfc,-0.0080171076571973077,-0.0023076556687991923,2,True,stability only; no permutation p inferred
+shared,distributed_minus_pfc,0.40284489389399397,0.53433258494018687,2,True,stability only; no permutation p inferred
+shared,nonpfc_minus_covariates,0.78248606686583666,0.80201445083390666,2,True,stability only; no permutation p inferred
+shared,pfc_minus_covariates,0.25966475823652252,0.37733351730304338,2,True,stability only; no permutation p inferred

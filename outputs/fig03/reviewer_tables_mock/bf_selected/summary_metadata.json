@@ -1,0 +1,34 @@
+{
+  "analysis_kind": "age_bf_selected_summary_v1",
+  "simulated": true,
+  "source_sha256": {
+    "E:\\emo_reg_development\\outputs\\fig03\\inference_mock\\age\\age_bayes_statistics.csv": "7b7a00106179c2d7848b326ff6fd1005d5d377a6532e5205f13ec473017019ec",
+    "E:\\emo_reg_development\\outputs\\fig03\\inference_mock\\age\\age_bayes_comparisons.csv": "1069d1e3505fa7bb13be6f7791c24cc32095535597c1e842739e651197a6406a",
+    "E:\\emo_reg_development\\outputs\\fig03\\inference_mock\\age\\age_bayes_prior_sensitivity.csv": "4bc721563f5c56f1db7161bfe8050760311bf10c5fbc36deafe90a0431b7d35d"
+  },
+  "row_counts": {
+    "selected_region_summary.csv": 6,
+    "selected_region_comparisons.csv": 18,
+    "selected_invalid_tests.csv": 0
+  },
+  "outputs": [
+    "selected_region_summary.csv",
+    "selected_region_comparisons.csv",
+    "selected_invalid_tests.csv",
+    "result_summary.md",
+    "summary_metadata.json"
+  ],
+  "source_changes": "none; no model refitting, reintegration, resampling or multiple-comparison correction",
+  "selected_parcels": [
+    152,
+    154,
+    182,
+    185,
+    156,
+    157
+  ],
+  "source_metadata_checked": false,
+  "prior_grid_checked": true,
+  "n_invalid_units": 0,
+  "atlas_parcels": 432
+}

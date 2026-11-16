@@ -1,0 +1,13 @@
+﻿filter,n_failed_total,n_before,n_newly_excluded,n_remaining
+independent_original_qc,0,96,0,96
+age_missing_or_nonfinite,0,96,0,96
+gender_missing_or_nonfinite,0,96,0,96
+meanFD_missing_or_nonfinite,0,96,0,96
+gender_not_0_or_1,0,96,0,96
+meanFD_above_0_5,0,96,0,96
+meanFD_negative,0,96,0,96
+site_id_missing,0,96,0,96
+behavior_subject_not_found,0,96,0,96
+success_missing_or_invalid,0,96,0,96
+brain_subject_not_found,0,96,0,96
+brain_has_nonfinite_parcels,0,96,0,96

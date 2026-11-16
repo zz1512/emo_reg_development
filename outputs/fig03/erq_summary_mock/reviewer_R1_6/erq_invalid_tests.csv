@@ -1,0 +1,1 @@
+﻿dimension,name,label,status,n_obs,comparison,effect,models,estimate_source,beta_units,statistic_type,beta,se,ci_low,ci_high,t,F,df1,df2,p,q,reject,partial_r2_reference,rss_reference_reduced,statistic,delta_r2_pygam,delta_rss_pygam,rss_reference_target,invalid_reason,valid_test,significant_from_q

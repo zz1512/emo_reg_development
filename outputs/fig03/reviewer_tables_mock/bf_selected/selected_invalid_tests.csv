@@ -1,0 +1,1 @@
+﻿dimension,name,label,status,n_obs,comparison,bf10,bf01,log_bf10,evidence,sensitivity_log_bf10_min,sensitivity_log_bf10_max,sensitivity_direction_stable,sensitivity_evidence_labels,frequentist_F,frequentist_df1,frequentist_df2,frequentist_p,frequentist_q,frequentist_partial_r2,valid_test,invalid_reason,model_comparison

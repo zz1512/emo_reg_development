@@ -1,0 +1,37 @@
+{
+  "analysis_kind": "erq_reviewer_summary_v1",
+  "simulated": true,
+  "alpha": 0.05,
+  "analysis_dir": "E:\\emo_reg_development\\outputs\\fig03\\erq_summary_mock\\source",
+  "source_metadata_check": "Source run_metadata.json identified ERQ v3",
+  "source_sha256": {
+    "E:\\emo_reg_development\\outputs\\fig03\\erq_summary_mock\\source\\run_metadata.json": "6cbeae14685c55ad3bb667e32f9baf07ced14359af18e2f399d3ed282232dd33",
+    "E:\\emo_reg_development\\outputs\\fig03\\erq_summary_mock\\source\\statistics\\erq_age_statistics.csv": "dfa53b27466a4ab26e0d1779508e37a5a57561bdc64edc263ad462bf4a2d263c",
+    "E:\\emo_reg_development\\outputs\\fig03\\erq_summary_mock\\source\\statistics\\erq_sequential_comparisons.csv": "ec271e45d1b62f2d9c23fe285e2b0d98c22b66077f88a0d8a78a8370f2582db1",
+    "E:\\emo_reg_development\\outputs\\fig03\\erq_summary_mock\\source\\statistics\\erq_table_definitions.json": "404e8ea1c157b5ebf08eee26f481e0e382b9483cda6959a89f8baf4cd0729180"
+  },
+  "all_tests_valid": true,
+  "n_invalid_tests": 0,
+  "all_available_q_nonsignificant": true,
+  "all_tests_valid_and_nonsignificant": true,
+  "row_counts": {
+    "erq_response_summary.csv": 4,
+    "erq_comparison_summary.csv": 12,
+    "erq_joint_summary.csv": 4,
+    "erq_primary_details.csv": 898,
+    "erq_joint_details.csv": 449,
+    "erq_invalid_tests.csv": 0
+  },
+  "source_changes": "none; no model fitting or BH recalculation",
+  "outputs": [
+    "erq_response_summary.csv",
+    "erq_comparison_summary.csv",
+    "erq_joint_summary.csv",
+    "erq_primary_details.csv",
+    "erq_joint_details.csv",
+    "erq_invalid_tests.csv",
+    "erq_result_summary.md",
+    "summary_metadata.json",
+    "erq_response_table.docx"
+  ]
+}

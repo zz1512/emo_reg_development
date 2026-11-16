@@ -1,0 +1,11 @@
+﻿scheme,comparison,full_model,reduced_model,n,delta_r2,delta_mae,delta_rmse,p_permutation,q_primary,inference,replicate,status,reason
+joint,distributed_minus_pfc,M2_distributed432,M1_PFC,96,0.28494641072494581,-0.16314494352964526,-0.21523784560506387,,,not_run,1,ok,
+joint,pfc_minus_covariates,M1_PFC,M0_covariates,96,0.31107660005319709,-0.17279625293029377,-0.18810704356391073,,,not_run,1,ok,
+joint,distributed_minus_covariates,M2_distributed432,M0_covariates,96,0.5960230107781429,-0.33594119645993903,-0.4033448891689746,,,not_run,1,ok,
+joint,nonpfc_minus_covariates,M3_nonPFC,M0_covariates,96,0.5959284308721351,-0.33548204281128768,-0.40327563640866793,,,not_run,1,ok,
+joint,distributed_minus_nonpfc,M2_distributed432,M3_nonPFC,96,9.4579906007807857e-05,-0.00045915364865134478,-6.9252760306670602e-05,,,not_run,1,ok,
+shared,distributed_minus_pfc,M2_distributed432,M1_PFC,96,0.3329387288084632,-0.1830986628678633,-0.29813855317933768,,,not_run,1,ok,
+shared,pfc_minus_covariates,M1_PFC,M0_covariates,96,0.42042708106685822,-0.29415109586534227,-0.26893316046412385,,,not_run,1,ok,
+shared,distributed_minus_covariates,M2_distributed432,M0_covariates,96,0.75336580987532142,-0.47724975873320558,-0.56707171364346154,,,not_run,1,ok,
+shared,nonpfc_minus_covariates,M3_nonPFC,M0_covariates,96,0.75318983697504605,-0.47457162292159527,-0.56687221756693262,,,not_run,1,ok,
+shared,distributed_minus_nonpfc,M2_distributed432,M3_nonPFC,96,0.00017597290027537849,-0.0026781358116103049,-0.00019949607652891554,,,not_run,1,ok,

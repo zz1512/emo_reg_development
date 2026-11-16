@@ -1,0 +1,31 @@
+{
+  "kind": "joint_pls_both_routes_v1",
+  "k_max": 2,
+  "simulated": true,
+  "data_sha256": "ff7343a4ba2a4280315ece1b2c66e94f0f423b2a75fb359f666930af45c54439",
+  "code_sha256": {
+    "models.py": "15feef2898bc72ee89ef96e9fee0a50504e98973aa0aee88c97963ec41d53a8f",
+    "pipeline.py": "04bea67a66d409deb66ae587e9d0826288cb0d489b9d294619516656b20ee1bd",
+    "resampling.py": "10ffdb1c877486a257b340c276d81fe98056afdba33ffe5d2dd3a515a03af99f",
+    "io.py": "3e5aff106cafc44bb0b746cbe9952379aca9b8bd17ca2cd0a8ac6191977b02e3"
+  },
+  "versions": {
+    "python": "3.14.2",
+    "numpy": "2.5.1",
+    "pandas": "3.0.3",
+    "sklearn": "1.9.1"
+  },
+  "reference": "training-only all432 PLS first Y direction, common to all candidate models",
+  "prediction_covariates": [
+    "intercept",
+    "gender",
+    "meanFD"
+  ],
+  "primary_family": [
+    "joint:distributed_minus_pfc",
+    "shared:distributed_minus_pfc"
+  ],
+  "default_permutations": 1000,
+  "default_bootstraps": 1000,
+  "resampling_nested": false
+}

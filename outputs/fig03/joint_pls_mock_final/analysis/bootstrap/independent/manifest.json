@@ -1,0 +1,15 @@
+{
+  "kind": "bootstrap",
+  "null": "independent",
+  "total": 3,
+  "seed": 20261117,
+  "data_sha256": "ff7343a4ba2a4280315ece1b2c66e94f0f423b2a75fb359f666930af45c54439",
+  "code_sha256": {
+    "models.py": "15feef2898bc72ee89ef96e9fee0a50504e98973aa0aee88c97963ec41d53a8f",
+    "pipeline.py": "c1de0f45acddd3a4cf02796de15304a9528f774554f5c5f6e16adedb26de64a9",
+    "resampling.py": "62a2d8df699e8dfb0ad94a12d77a601c3dee4275931da718144334a733cf46f9",
+    "io.py": "3e5aff106cafc44bb0b746cbe9952379aca9b8bd17ca2cd0a8ac6191977b02e3"
+  },
+  "k_max": 2,
+  "bootstrap_nested": false
+}

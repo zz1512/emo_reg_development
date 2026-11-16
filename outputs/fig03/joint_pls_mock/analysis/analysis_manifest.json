@@ -1,0 +1,24 @@
+{
+  "kind": "joint_pls_both_routes_v1",
+  "k_max": 2,
+  "simulated": true,
+  "data_sha256": "ff7343a4ba2a4280315ece1b2c66e94f0f423b2a75fb359f666930af45c54439",
+  "code_sha256": {
+    "E:\\emo_reg_development\\analysis\\fig03\\joint_pls\\models.py": "15feef2898bc72ee89ef96e9fee0a50504e98973aa0aee88c97963ec41d53a8f",
+    "E:\\emo_reg_development\\analysis\\fig03\\joint_pls\\pipeline.py": "04bea67a66d409deb66ae587e9d0826288cb0d489b9d294619516656b20ee1bd",
+    "E:\\emo_reg_development\\analysis\\fig03\\joint_pls\\resampling.py": "f635fbc95c17aed32097532cd326b9af9dc71590645c077f6c1a739371c8050b"
+  },
+  "reference": "training-only all432 PLS first Y direction, common to all candidate models",
+  "prediction_covariates": [
+    "intercept",
+    "gender",
+    "meanFD"
+  ],
+  "primary_family": [
+    "joint:distributed_minus_pfc",
+    "shared:distributed_minus_pfc"
+  ],
+  "default_permutations": 1000,
+  "default_bootstraps": 1000,
+  "resampling_nested": false
+}

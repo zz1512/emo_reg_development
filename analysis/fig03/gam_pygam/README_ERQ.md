@@ -224,6 +224,18 @@ python -m analysis.fig03.gam_pygam.result_tables \
   --output "outputs/fig03/erq_age_pygam_432_models3_FD05/statistics"
 ```
 
+## 从已有结果生成审稿回复汇总
+
+若三项比较都已完成，可直接提取四个范围的4行回复信主表、4行联合比较补充表、898行主要比较明细和449行联合比较明细，不重新拟合：
+
+```bash
+python -m analysis.fig03.gam_pygam.summarize_erq \
+  --analysis-dir "outputs/fig03/erq_age_pygam_432_models3_FD05" \
+  --expect-all-nonsignificant
+```
+
+默认写入该ERQ目录的`reviewer_R1_6/`，包括Word三线表、全精度CSV及中英文数值总结。断言参数仅核验已保存q，不会修改显著性；失败或缺失结果单独列出，不能计作不显著。字段对应、行数和需要同步的工程文件见[README_ERQ_SUMMARY.md](README_ERQ_SUMMARY.md)。
+
 ## 本地验证
 
 `test_erq.py` 使用独立 statsmodels OLS 验证逐步 F/自由度、E2 系数/SE/CI、参考 partial R²、三模型共享样本、比较别名、分范围分比较 BH、拟合指标和兼容升级。端到端验证 449 单元、1347 行全精度表、失效图清理及源文件只读；保留逐行 ID 还原、全部 ERQ 源行及逐被试排除审计。测试使用小平滑网格，不改变检验空间。

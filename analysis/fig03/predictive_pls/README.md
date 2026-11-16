@@ -1,6 +1,10 @@
 # 跨站点 PLS：宽范围解剖 PFC
 
+新增的“年龄＋重评成功共同样本”两套 PLSRegression 方案位于 [joint_pls](../joint_pls/README.md)：联合多输出预测与同一共有成分预测，并提供模型比较的置换检验和独立 bootstrap。本目录仍是原有单目标分析，不会自动改成新方案。
+
 结果目录：`outputs/fig03/predictive_pls_432_FD05`。设计全文见 [实现方案](PLAN_MAIN.md)，PFC 文献核查见 [PFC 定义核查](README_PFC_LITERATURE.md)。本分析不改 GAM、ERQ 或贝叶斯因子。
+
+已有结果可用新增的`summarize_pls.py`只读提取汇报表：2行M2−M1主表、8行四模型表现、10行全部预设比较，不重新拟合或bootstrap。它会读取冻结成员表识别实际PFC定义，并区分bootstrap未运行、未完成、质量不足与推断可用。命令与字段见[BF和PLS汇报表说明](../README_REVIEWER_TABLES.md)。
 
 主分析只用 432 分区、meanFD ≤ 0.5。四个模型是协变量、协变量加 PFC 分区、协变量加全部 432 分区、协变量加非 PFC 分区。外层和内层都是留一站点。确认性终点是重评成功的 M2−M1 外层 R² 增量。年龄用同一套模型，作为次要分析。
 

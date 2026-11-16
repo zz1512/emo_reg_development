@@ -1,0 +1,35 @@
+{
+  "analysis_kind": "pls_reviewer_summary_v1",
+  "simulated": true,
+  "source_sha256": {
+    "E:\\emo_reg_development\\outputs\\fig03\\reviewer_tables_mock\\pls_source\\model_performance.csv": "6ef888aebaf155bf50ea9af337b7280c9d21826cd291be858d12ec3a02925515",
+    "E:\\emo_reg_development\\outputs\\fig03\\reviewer_tables_mock\\pls_source\\model_comparisons.csv": "8e0361188abe70749185acd5c3574650491d1c974c859fd4d576bdf332b24b38",
+    "E:\\emo_reg_development\\outputs\\fig03\\reviewer_tables_mock\\pls_source\\oof_predictions.csv": "7faa84e6524eacb6e173e573fdf831fdb3475ec432f19775848aac37b105c4fa",
+    "E:\\emo_reg_development\\outputs\\fig03\\reviewer_tables_mock\\pls_source\\frozen\\config_snapshot.json": "56c6bea1f72f092815ecde050ebb598d97626fbd7719a12c022e9afd11e9d91a",
+    "E:\\emo_reg_development\\outputs\\fig03\\reviewer_tables_mock\\pls_source\\frozen\\bootstrap_status.json": "22be6a577e0e0808b302a1920aaf5fb5b522e8854445140a2854c7d05fdfff0c",
+    "E:\\emo_reg_development\\outputs\\fig03\\reviewer_tables_mock\\pls_source\\frozen\\pfc_parcel_membership.csv": "3ee4eca4e5f34f05c2faa8636771794b69ba4db5be67aba85c07b3f4030322c8",
+    "E:\\emo_reg_development\\outputs\\fig03\\reviewer_tables_mock\\pls_source\\bootstrap_metrics.csv": "ee317845df88774f3116c84445cd2d8c18d3b95e05f1e26c593980307ae12295"
+  },
+  "row_counts": {
+    "pls_main_summary.csv": 2,
+    "pls_model_performance.csv": 8,
+    "pls_all_comparisons.csv": 10
+  },
+  "outputs": [
+    "pls_main_summary.csv",
+    "pls_model_performance.csv",
+    "pls_all_comparisons.csv",
+    "result_summary.md",
+    "summary_metadata.json",
+    "response_tables.docx"
+  ],
+  "source_changes": "none; no model refitting, reintegration, resampling or multiple-comparison correction",
+  "pfc_definition": "SIMULATED anatomical PFC",
+  "pfc_rule": "SIMULATED rule",
+  "source_snapshot_checked": true,
+  "score_direction": "not verified",
+  "bootstrap_report_status": {
+    "success": "inference_available",
+    "age": "inference_available"
+  }
+}
