@@ -1,0 +1,4 @@
+﻿model,n,n_features,age_weight,success_weight,score_scale,age_loading,success_loading,brain_score_age_correlation,brain_score_success_correlation,same_direction_weights,interpretation
+M1_PFC,96,10,0.67488191157818811,0.73792574519701537,1.251160278002329,0.87420575976020309,0.89599072541665692,0.40321005447733704,0.44087576628825786,True,full-sample descriptive first component; not held-out performance or significance
+M2_distributed432,96,432,0.81667960914820736,0.57709134112506955,1.238980706365014,0.92355776220104546,0.8399535386544964,0.89954826210732186,0.63564892176955567,True,full-sample descriptive first component; not held-out performance or significance
+M3_nonPFC,96,422,0.81718829477478527,0.57637079287822934,1.2388454185033826,0.92373906541110939,0.83969672440614895,0.89936145080879648,0.63432831307213033,True,full-sample descriptive first component; not held-out performance or significance

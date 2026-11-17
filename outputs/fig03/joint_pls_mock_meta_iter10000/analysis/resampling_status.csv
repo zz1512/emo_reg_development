@@ -1,0 +1,4 @@
+﻿kind,null,requested,completed,valid,inference_complete
+permutation,covariates,3,3,3,True
+permutation,pfc,3,3,3,True
+bootstrap,independent,3,3,3,True

@@ -1,0 +1,39 @@
+{
+  "derivation": "Within each original replicate, all six pairwise differences derive from the three model-minus-M0 values; M3-M2 reverses archived M2-M3",
+  "primary_family": "joint/shared distributed_minus_pfc, BH over 2 tests (unchanged)",
+  "secondary_family": "joint/shared nonpfc_minus_pfc, BH over 2 secondary tests",
+  "exploratory_family": "Three model-minus-M0 contrasts across joint/shared, BH over 6 exploratory tests",
+  "q_bh": "Within-family adjusted P, copied from q_primary, q_secondary or q_exploratory",
+  "correction_scope": "Three separate BH families of 2, 2 and 6 tests; not a combined ten-test correction",
+  "m3_minus_m2": "Descriptive paired estimate and bootstrap CI; no reversed or borrowed permutation P",
+  "null": "Approximate PFC-reduced conditional null; not generic equality of nonnested algorithms",
+  "quality": [
+    {
+      "kind": "permutation",
+      "null": "pfc",
+      "requested": 3,
+      "completed": 3,
+      "valid": 3,
+      "complete": true,
+      "failures": []
+    },
+    {
+      "kind": "permutation",
+      "null": "covariates",
+      "requested": 3,
+      "completed": 3,
+      "valid": 3,
+      "complete": true,
+      "failures": []
+    },
+    {
+      "kind": "bootstrap",
+      "null": "independent",
+      "requested": 3,
+      "completed": 3,
+      "valid": 3,
+      "complete": true,
+      "failures": []
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+﻿sub_id,age,gender,site_id,meanFD,parent_edu,in_analysis,excluded_by,subject_key,original_in_analysis,original_excluded_by,independent_qc_failed,education_exclusion_reconsidered,source_row,real_sub_id,score_column,score_raw,success,score_status
+s00000,12.664159010456832,0,1,0.3278510817857907,,0,parent_edu_missing_value,s00000,False,parent_edu_missing_value,False,True,1,s00000,reappraisal_success,-0.23660791400705955,-0.23660791400705949,valid
+s00001,12.205103636602326,1,2,0.3289380922025027,,0,parent_edu_missing_value,s00001,False,parent_edu_missing_value,False,True,2,s00001,reappraisal_success,0.089156756804722015,0.089156756804722001,valid

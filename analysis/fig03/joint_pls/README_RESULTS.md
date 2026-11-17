@@ -1,10 +1,14 @@
 # 两套联合 PLS：结果读取说明
 
-执行与方法见 [README](README.md)。正式根目录默认为 `outputs/fig03/joint_pls_432_FD05_both/`；`mock` 路径下全部数值均为模拟，不能用于论文。
+执行与方法见 [README](README.md)。修复迭代上限后的 meta 正式根目录为 `outputs/fig03/joint_pls_432_FD05_meta_pfc_both_iter10000/`；旧的 80 区结果在 `outputs/fig03/joint_pls_432_FD05_both/`，两者不能混用。`mock` 路径下全部数值均为模拟，不能用于论文。
 
 ## 先核实样本
 
 `precheck/sample_metadata.json` 的 `n`、`sites` 是重新预检后的共同样本量和站点数，两个结局、四个模型及两套方案完全一致。`parent_education_used` 必须为 false。不要把旧分析的 N 直接抄到新表。
+
+其中 `pfc_definition.source` 应为 `Buhle2014_reappraisal_PFC`，`n_pfc=10`、`n_remaining=422`。旧 80 区版本为 `Donahue2018_liberal_bilateral`。`precheck/pfc_parcel_membership.csv` 是本次冻结使用的具体成员，报告开头也会标注定义和脑区数。
+
+Meta 报告中的 `Remaining regions` 是其余 422 个分区，可能包括未被元分析定义选中的解剖 PFC；不能解释为严格的解剖非前额叶。CSV 内部模型名 `M3_nonPFC` 为兼容性保留。
 
 | 文件 | 读取用途 |
 |---|---|
@@ -36,14 +40,24 @@ R²、MAE、RMSE 的主要报告空间均为**调整后的标准化残差/分数
 |---|---|
 | `delta_r2` | 全脑减 PFC，正值为观察到的预测增益；本身不是显著性 |
 | `p_permutation` | 对应约简模型零分布的单侧近似置换 P |
-| `q_primary` | 两套主比较一起做 BH；仅主比较有 q |
+| `q_primary` | 两套 M2−M1 主比较一起做 BH，仅主比较填此列 |
+| `q_secondary` | 两套 M3−M1 次要比较一起做 BH，仅次要比较填此列 |
+| `q_exploratory` | M1−M0、M2−M0、M3−M0 × 两套方案，共六项一起做 BH |
+| `q_bh` | 该行所属检验族的 BH q，供统一读取和绘图；不代表10项统一校正 |
+| `bh_family_size` | 对应族的预定检验数：主比较2、次要比较2、探索性比较6；描述性比较0 |
 | `permutations_requested/valid` | 正式应为 1000/1000 |
 | `inference` | 未运行 `not_run`、未完成 `incomplete`、或完整近似条件置换状态 |
 | `supported_primary` | 完整主比较且 ΔR²>0、q<0.05 才 true；推断未就绪时留空 |
 
 `model_performance.csv` / `report/model_performance_full_precision.csv`：**8 行**（2 方案×4 模型），字段含 N、站点数、脑区数、R²、MAE、RMSE。负 R² 保留，表示不如评价空间中的常数均值参照，不得截成零。
 
-`model_comparisons.csv` / `report/model_comparisons_full_precision.csv`：**10 行**（2×5 预设比较）：全脑−PFC、PFC−协变量、全脑−协变量、非PFC−协变量、全脑−非PFC。负 ΔMAE/ΔRMSE 表示误差降低。只跑默认 `--null pfc` 时，其他比较 P 留空；它们不是“全部不显著”，而是尚未执行相应零分布。
+`report/pfc_comparisons.csv`：**4 行**，两套方案各有全脑−PFC（M2−M1）与剩余脑区−PFC（M3−M1）。这是本次直接比较 PFC 时优先读取的表。`q_primary` 只校正原来的两项 M2−M1；`q_secondary` 只校正新加的两项 M3−M1。两个检验族分别 BH，不是四项统一校正。`supported_secondary` 为新比较的 ΔR²>0 且次要 q<0.05 的状态，推断待完成时为空。
+
+`report/model_comparisons_full_precision.csv`：**10 行**（2×5），每套按 M1−M0、M2−M0、M3−M0、M2−M1、M3−M1 排列。负 ΔMAE/ΔRMSE 表示误差降低。`--null pfc` 可恢复 M2−M1 和 M3−M1 的各自 P；三种相对 M0 的比较只有另跑 `--null covariates` 才有 P。M3−M2 / M2−M3 不是分析目标，不出现在新报告中。根目录 `model_comparisons.csv` 与 `observed_comparisons.csv` 为旧计算原始记录；正式汇报使用 `report/` 新表。
+
+相对 M0 的六项比较现在一起输出 `q_exploratory`；两套方案共同进入同一个探索性六检验族，不是每张图各自校正三项。`q_bh` 汇集各行相应的 `q_primary/q_secondary/q_exploratory`，图和三线表统一读取此列。原主/次比较族保持不变，三个族分别校正，不提供全部10项比较的统一 FDR 保证。`supported_exploratory` 仅在探索性 q 就绪且 ΔR²>0、q<0.05 时为 true。若族内任一 P 未就绪，整族 q 留空，不把未完成当作不显著。补 q 只需重新 report，无需重跑已完成的置换。
+
+新增统计量不是沿用 M2−M1 的 P。新导出器逐次计算 `(M3−M0)−(M1−M0)`，并使用 PFC 约简零分布下该差值计算近似条件 P。其解释受既有线性约简均值与可交换性假设限制，不是两个非嵌套算法普遍相等的检验。M3−M1 也不是单个脑区显著性；它比较剩余脑区集合和 PFC 集合。真正的合并增量问题仍看 M2−M1。
 
 ## 成分与泛化诊断
 
@@ -58,7 +72,11 @@ R²、MAE、RMSE 的主要报告空间均为**调整后的标准化残差/分数
 
 `resampling_status.csv` 检查请求、完成、有效重复数。未运行不产生正式 P；失败不会自动作为 false 或被丢弃后重新计算较好看的 P。
 
-`permutations/pfc/` 是主零分布；可选 `covariates/`、`nonpfc/` 分别对应 README 中说明的探索性比较。`manifest.json` 固定参数、零假设与源哈希，`rep_*.csv` 记录每次状态与 ΔR²，`indices_*.npy` 保存确切站点内置换索引。
+`completed=1000` 只表示 1000 次都返回了状态，不能代替 `valid=1000`。例如置换 `completed=1000, valid=989` 表示 11 次失败，P/q 留空；bootstrap `valid=994` 表示 6 次失败，最终权重稳定性汇总未就绪。进度日志的最后一行 `1000/1000 ok` 仅指编号 1000 的那一次成功，不代表前面每一次都成功。
+
+已确认的旧批次错误是 `ConvergenceWarning: Maximum number of iterations reached`。新版将 PLS 上限从默认 500 增至 10000，容差仍为 `1e-6`；读取 `analysis_manifest.json` 的 `solver` 可核对。修复后用新的 meta 输出目录重新运行，先核对 `PFC=10`。不能把 80 区结果改名当作 meta，也不能忽略失败记录直接用 989 次生成正式 P。正式有效数仍以服务器运行后实际输出为准。
+
+`permutations/pfc/` 用于 M2−M1 和新 M3−M1；可选 `covariates/` 对应三个脑模型相对 M0 的探索性比较。本次不使用 `nonpfc/`。`manifest.json` 固定参数、零假设与源哈希，`rep_*.csv` 记录每次状态与 ΔR²，`indices_*.npy` 保存确切站点内置换索引。新报告直接核对这些原始逐次记录，不以旧聚合文件中的“complete”代替检查。
 
 `bootstrap/independent/` 与置换互不嵌套。每次从各站点有放回抽原站点 N_s 人，总数固定 N。输出：
 
@@ -68,7 +86,15 @@ R²、MAE、RMSE 的主要报告空间均为**调整后的标准化残差/分数
 
 ## 可直接查看的文件
 
-`report/response_tables.docx` 为两页三线表：每套方案一页，四模型表现＋五项模型比较＋英文结果段落。`report/result_summary.md` 含相同结果和更完整的方法边界；`joint_model_performance.svg`、`shared_model_performance.svg` 为各自表现图，仅输出 SVG。
+`report/response_tables.docx` 为每套方案的三线表：四模型表现＋五项模型比较＋英文结果段落。`report/result_summary.md` 含相同结果和完整的方法边界。
+
+默认输出 **joint 和 shared 各自独立的一张图，每张五行比较**：`report/joint_all_model_comparisons.svg`、`report/shared_all_model_comparisons.svg`。模型身份固定使用高饱和度配色：M0 蓝（#0072FF）、M1 绿（#00A651）、M2 紫（#8B2CFF）、M3 橙（#FF7A00），跨所有比较和方案一致。左图为两个模型 R² 点估计和灰色连接线；**单模型端点CI默认关闭**。右图保留可用的 ΔR² 配对95%CI，直接在对应差值点上方**统一标注 BH q**，读取 `q_bh`，以 `BH-adjusted q` 标明其性质；无就绪 q 时不标注，不回退显示 P。CSV 和 Word 同时保留原始 P 与相应族的校正后 q。正式图不再单设统计列或重复列出估计和区间数值，完整统计与方法说明保留在表格中。显著性不由单模型区间重叠与否自动判定。
+
+只有需要单模型端点CI时，才执行 README 中 `bootstrap_endpoints` 恢复命令，并在 report 命令加 **`--model-ci`**。默认不读取已有端点区间。恢复按原索引重建外层 M0 评估目标，再用三个 model−M0 差值恢复绝对 R²；shared 仅重建外层参考第一 Y 方向，不重新做内层调参或候选模型拟合。`bootstrap_model_r2_intervals.csv` 含8行区间，另有逐次绝对 R² 及来源哈希文件。端点CI和差值CI使用同一批抽样，不能直接相减两个端点区间来替代配对差值区间。
+
+每套图的 `*_all_model_comparisons_data.csv` 含该图五行全精度端点、端点区间、差值、差值区间和 P/q。旧版合并图只是历史产物，默认不再生成或刷新，请使用新的两张独立图。
+
+`figure_comparison_data.csv` 为主图逐项全精度数据；`paired_permutation_statistics.csv` 与 `paired_bootstrap_statistics.csv` 为逐次配对恢复后的统计量；`comparison_provenance.json` 记录派生公式、校正范围、请求/完成/有效数及失败记录。失败或未完成时不输出最终 P 或最终区间。正式图默认仅 SVG，`--preview` 额外生成 PNG 供预览。
 
 正式结果段落只有在主置换完成后才会写“支持/未支持正向增量”；未运行或未完成会明确写推断待完成。即使 P/q 不显著，也不能据此证明 PFC 与非 PFC 完全等效或发展相互独立。
 

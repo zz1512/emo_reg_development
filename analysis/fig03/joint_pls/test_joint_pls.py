@@ -3,13 +3,15 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 from sklearn.cross_decomposition import PLSRegression
+from sklearn.exceptions import ConvergenceWarning
 from threadpoolctl import threadpool_limits
 
-from .models import fit_curve, prepare
+from .models import fit_curve, prepare, PLS_MAX_ITER, PLS_TOL
 from .pipeline import Data, nested_loso
 from .resampling import reduced_null, within_site_permutation, bootstrap_index, merge
 from .sample import precheck
@@ -45,6 +47,28 @@ class JointPLSTests(unittest.TestCase):
         for k in range(1, 5):
             reference = PLSRegression(n_components=k, scale=False).fit(p.x, p.y)
             np.testing.assert_allclose(curve.predict(xt, k), reference.predict(xt), atol=1e-10)
+
+    def test_slow_pls_converges_with_extended_budget_without_relaxing_tolerance(self):
+        rng = np.random.default_rng(421)
+        x = rng.normal(size=(60, 2))
+        x = np.linalg.qr(x - x.mean(0))[0]
+        angle = 1.2
+        rotation = np.array([[np.cos(angle), -np.sin(angle)],
+                             [np.sin(angle), np.cos(angle)]])
+        y = x @ np.diag([1., np.sqrt(.997)]) @ rotation
+        # A genuine numerical regression: the old 500-step fit emits a warning.
+        with self.assertWarns(ConvergenceWarning):
+            PLSRegression(n_components=1, scale=False, max_iter=500, tol=PLS_TOL).fit(x, y)
+        curve = fit_curve(x, y, 1)
+        self.assertGreater(curve.n_iter[0], 500)
+        self.assertLess(curve.n_iter[0], PLS_MAX_ITER)
+        reference = PLSRegression(n_components=1, scale=False,
+                                  max_iter=PLS_MAX_ITER, tol=PLS_TOL).fit(x, y)
+        np.testing.assert_allclose(curve.predict(x, 1), reference.predict(x), atol=1e-12)
+        # Hitting even the enlarged budget must still fail, never silently pass.
+        with patch("analysis.fig03.joint_pls.models.PLS_MAX_ITER", 1):
+            with self.assertRaisesRegex(ConvergenceWarning, "max_iter=1"):
+                fit_curve(x, y, 1)
 
     def test_heldout_y_cannot_change_axis_tuning_or_predictions_for_that_site(self):
         d = fixture()
@@ -156,6 +180,24 @@ class JointPLSTests(unittest.TestCase):
             roster = pd.read_csv(rebuilt / "sample_roster.csv")
             self.assertEqual(roster.first_exclusion.eq("independent_original_qc").sum(), 1)
             self.assertTrue(set(people.sub_id.iloc[:2]).issubset(set(pd.read_csv(rebuilt / "common_sample.csv").sub_id)))
+
+    def test_meta_pfc_membership_is_frozen_and_identified_in_report(self):
+        membership = Path(__file__).resolve().parents[3] / "outputs/fig03/predictive_pls_432_FD05_meta_pfc/pfc_definition/pfc_parcel_membership.csv"
+        with tempfile.TemporaryDirectory() as folder:
+            analysis = mock(Path(folder) / "meta", membership, n=96, permutations=0, bootstraps=0, docx=False)
+            meta = json.loads((analysis / "precheck/sample_metadata.json").read_text(encoding="utf-8"))
+            self.assertEqual(meta["pfc_definition"]["source"], "Buhle2014_reappraisal_PFC")
+            self.assertEqual(meta["pfc_definition"]["n_pfc"], 10)
+            self.assertEqual(meta["pfc_definition"]["n_remaining"], 422)
+            frozen = pd.read_csv(analysis / "precheck/pfc_parcel_membership.csv")
+            with np.load(analysis / "precheck/data.npz", allow_pickle=False) as archive:
+                np.testing.assert_array_equal(frozen.is_pfc, archive["pfc"])
+            performance = pd.read_csv(analysis / "model_performance.csv")
+            self.assertTrue(performance.loc[performance.model.eq("M1_PFC"), "n_features"].eq(10).all())
+            self.assertTrue(performance.loc[performance.model.eq("M3_nonPFC"), "n_features"].eq(422).all())
+            text = (analysis / "report/result_summary.md").read_text(encoding="utf-8")
+            self.assertIn("Buhle2014_reappraisal_PFC", text)
+            self.assertIn("Remaining regions", text)
 
 
 if __name__ == "__main__":

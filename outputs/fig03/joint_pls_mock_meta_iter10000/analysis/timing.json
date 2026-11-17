@@ -1,0 +1,4 @@
+{
+  "observed_fit_seconds": 0.2529190999921411,
+  "note": "One full both-route nested LOSO pass; resampling wall time must be benchmarked on the server"
+}

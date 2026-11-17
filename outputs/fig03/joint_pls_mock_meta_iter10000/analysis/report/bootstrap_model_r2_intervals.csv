@@ -1,0 +1,9 @@
+﻿scheme,model,ci_low,ci_high,bootstrap_valid,bootstrap_requested,complete,data_sha256,interpretation
+joint,M0_covariates,-0.00038642383383306,-0.00014024677854033001,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws
+joint,M1_PFC,-0.13014423598560357,0.22906189058599954,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws
+joint,M2_distributed432,0.59346435962559296,0.64172544515742458,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws
+joint,M3_nonPFC,0.59414224567013618,0.64200797802346776,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws
+shared,M0_covariates,-0.00024921867413803999,-0.000143668856039095,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws
+shared,M1_PFC,-0.18607440011524379,0.27061825974059606,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws
+shared,M2_distributed432,0.77289453402999253,0.79954467478313096,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws
+shared,M3_nonPFC,0.77370124891845415,0.80158059215475708,3,3,True,8b79f66aec378490e9df4a16fc489314e2bb671470a22f1cd7c2187935942aae,Absolute model R2 CI from the same original paired bootstrap draws

@@ -14,6 +14,7 @@ from threadpoolctl import threadpool_limits
 from analysis.fig03.predictive_pls.precheck import project_path
 from .sample import precheck, load_data, own_output, sha256, write_csv
 from .pipeline import nested_loso, component_tables
+from .models import PLS_MAX_ITER, PLS_TOL
 from .report import report
 from . import resampling
 
@@ -30,6 +31,9 @@ def fit(output, k_max=10, simulated=False):
                     versions=dict(python=platform.python_version(), numpy=np.__version__,
                                   pandas=pd.__version__, sklearn=sklearn.__version__),
                     reference="training-only all432 PLS first Y direction, common to all candidate models",
+                    solver=dict(estimator="sklearn.PLSRegression", scale=False,
+                                max_iter=PLS_MAX_ITER, tol=PLS_TOL,
+                                convergence_warning="failure; no unconverged result accepted"),
                     prediction_covariates=["intercept", "gender", "meanFD"],
                     primary_family=["joint:distributed_minus_pfc", "shared:distributed_minus_pfc"],
                     default_permutations=1000, default_bootstraps=1000, resampling_nested=False)
@@ -52,7 +56,8 @@ def fit(output, k_max=10, simulated=False):
     timing = dict(observed_fit_seconds=time.perf_counter()-started,
                   note="One full both-route nested LOSO pass; resampling wall time must be benchmarked on the server")
     (output / "timing.json").write_text(json.dumps(timing, indent=2), encoding="utf-8")
-    print(f"Both routes fitted: {output}; {timing['observed_fit_seconds']:.2f}s", flush=True)
+    print(f"Both routes fitted: {output}; N={len(data.y)}, PFC={int(data.pfc.sum())}, "
+          f"remaining={int((~data.pfc).sum())}; {timing['observed_fit_seconds']:.2f}s", flush=True)
     return result
 
 
@@ -135,6 +140,8 @@ def main(argv=None):
     p = sub.add_parser("report")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--skip-docx", action="store_true")
+    p.add_argument("--preview", action="store_true")
+    p.add_argument("--model-ci", action="store_true", help="Show optional recovered single-model R2 intervals")
     p = sub.add_parser("mock")
     p.add_argument("--output", type=Path, default=Path("outputs/fig03/joint_pls_mock"))
     p.add_argument("--membership", type=Path, default=Path("outputs/fig03/predictive_pls_432_FD05/pfc_definition/pfc_parcel_membership.csv"))
@@ -159,8 +166,8 @@ def main(argv=None):
         resampling.run(args.output, kind=args.command, null=getattr(args, "null", "pfc"),
                        total=args.total, start=args.start, count=args.count, workers=args.workers, seed=args.seed)
     elif args.command == "report":
-        resampling.merge(args.output)
-        print(report(args.output, not args.skip_docx))
+        # Results-only recovery preserves the frozen fits and repeat archives.
+        print(report(args.output, not args.skip_docx, preview=args.preview, model_ci=args.model_ci))
     elif args.command == "mock":
         print(mock(args.output, args.membership, args.n, k_max=args.k_max,
                    permutations=args.permutations, bootstraps=args.bootstraps, docx=not args.skip_docx))

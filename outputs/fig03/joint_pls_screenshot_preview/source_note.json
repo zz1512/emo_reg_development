@@ -1,0 +1,12 @@
+{
+  "purpose": "Preview of the model comparison figure using screenshot-transcribed point estimates",
+  "performance_image": "C:/Users/dell/AppData/Local/Temp/codex-clipboard-35f06e58-5835-4d95-b604-c593646a88ca.png",
+  "primary_inference_image": "C:/Users/dell/AppData/Local/Temp/codex-clipboard-216776e9-50e0-4f10-8b3d-b58bb4161f20.png",
+  "precision": "Limited to visible screenshot digits; not a full-precision server CSV export",
+  "primary_p": 0.000999001,
+  "primary_q": 0.000999001,
+  "secondary_p": null,
+  "secondary_q": null,
+  "bootstrap_intervals": null,
+  "warning": "M3 minus M1 has new inference pending. Do not copy primary P/q into the secondary comparison. No null distributions were reconstructed for this preview."
+}

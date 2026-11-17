@@ -112,6 +112,9 @@ def precheck(inputs: Path, behavior: Path, membership: Path, output: Path,
     if output == inputs or output in inputs.parents or inputs in output.parents:
         raise ValueError("Precheck output must be separate from source inputs")
     own_output(output, "joint_pls_precheck_v1")
+    # The shared loader validates both anatomical and meta-analysis definitions.
+    members = load_membership(membership)
+    write_csv(members, output / "pfc_parcel_membership.csv")
     upstream_sources = []
     if any(p is not None for p in (demographics, subjects, excluded)):
         if any(p is None for p in (demographics, subjects, excluded, meanfd)) or cohort_design:
@@ -203,9 +206,6 @@ def precheck(inputs: Path, behavior: Path, membership: Path, output: Path,
     write_csv(sample.groupby("site_id").agg(n=("sub_id", "size"), age_mean=("age", "mean"),
               age_min=("age", "min"), age_max=("age", "max"), success_mean=("success", "mean"),
               success_sd=("success", "std")).reset_index(), output / "site_summary.csv")
-    members = load_membership(membership)
-    if members.definition_source.iloc[0] != "Donahue2018_liberal_bilateral":
-        raise ValueError("This implementation is the broad anatomical PFC main analysis")
     data = Data(sample[PARCELS].to_numpy(float), sample[["age", "success"]].to_numpy(float),
                 sample[["gender", "meanFD"]].to_numpy(float), sample.site_id.to_numpy(str),
                 sample.sub_id.to_numpy(str), members.is_pfc.to_numpy(bool))
@@ -214,6 +214,11 @@ def precheck(inputs: Path, behavior: Path, membership: Path, output: Path,
     sources = [design_path, brain_path, note_path, inputs / "parcel_info.csv", behavior, membership]
     sources += [p for p in (id_source, meanfd) if p is not None] + upstream_sources
     metadata = dict(kind="joint_pls_common_sample_v1", n=len(sample), sites=len(np.unique(data.sites)),
+                    pfc_definition=dict(source=str(members.definition_source.iloc[0]),
+                                        rule=str(members.rule.iloc[0]),
+                                        n_pfc=int(members.is_pfc.sum()),
+                                        n_remaining=int((~members.is_pfc).sum()),
+                                        membership_sha256=sha256(membership)),
                     parent_education_used=False, age_is_outcome=True, score_column=score_column,
                     score_direction="source score; no sign reversal; verify source formula before interpretation",
                     reference_axis="training-only full432 PLS first Y direction; brain-informed, not a pure behavioral factor",

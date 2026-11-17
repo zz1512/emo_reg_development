@@ -1,0 +1,27 @@
+{
+  "kind": "joint_pls_common_sample_v1",
+  "n": 96,
+  "sites": 4,
+  "pfc_definition": {
+    "source": "Buhle2014_reappraisal_PFC",
+    "rule": "schaefer2mm_voxel_fraction>=0.25_inside_buhle_z2.3_and_harvard_oxford_pfc",
+    "n_pfc": 10,
+    "n_remaining": 422,
+    "membership_sha256": "66d59da303a6fb12f885acea6900325151b291ee527de9d5546dc043ad5e7a28"
+  },
+  "parent_education_used": false,
+  "age_is_outcome": true,
+  "score_column": "reappraisal_success",
+  "score_direction": "source score; no sign reversal; verify source formula before interpretation",
+  "reference_axis": "training-only full432 PLS first Y direction; brain-informed, not a pure behavioral factor",
+  "restored_education_excluded_n": 2,
+  "sources": {
+    "E:\\emo_reg_development\\outputs\\fig03\\joint_pls_mock_meta_iter10000\\source\\design.csv": "1b044f8f0c013833b5c7912be687e334157e4540e6e515bf42faf819d1af23cc",
+    "E:\\emo_reg_development\\outputs\\fig03\\joint_pls_mock_meta_iter10000\\source\\parcel_response.csv": "9793082747f5d09a23c36d9a43d84c67e38055ef86d324de742a5ba1cc4ac504",
+    "E:\\emo_reg_development\\outputs\\fig03\\joint_pls_mock_meta_iter10000\\source\\tian_combined.json": "04056e499e57d705ccd29e6a9a60d312afb8e6659858806ce30c59f8a059c929",
+    "E:\\emo_reg_development\\outputs\\fig03\\joint_pls_mock_meta_iter10000\\source\\parcel_info.csv": "47078d26a9253249508a9d70849eac9093dce968c12233c4339a1f5c17895630",
+    "E:\\emo_reg_development\\outputs\\fig03\\joint_pls_mock_meta_iter10000\\source\\behavior.csv": "1b1852d5a3fa3ec0bfc201a61d49e23b01dce2705606d882d3d094edecf530cc",
+    "E:\\emo_reg_development\\outputs\\fig03\\predictive_pls_432_FD05_meta_pfc\\pfc_definition\\pfc_parcel_membership.csv": "66d59da303a6fb12f885acea6900325151b291ee527de9d5546dc043ad5e7a28",
+    "E:\\emo_reg_development\\outputs\\fig03\\joint_pls_mock_meta_iter10000\\source\\row_ids.csv": "0c76b28debeb817f5e0ad19162bbaa106950d9fc11bbaa696be06a36d4cf3cf8"
+  }
+}

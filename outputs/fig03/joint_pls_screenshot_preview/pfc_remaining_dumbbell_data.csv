@@ -1,0 +1,3 @@
+﻿scheme,comparison,full_model,reduced_model,delta_r2,ci_low,ci_high,p_permutation,q_primary,q_secondary,permutations_requested,full_r2,pfc_r2,other_r2,difference_interval
+joint,nonpfc_minus_pfc,M3_nonPFC,M1_PFC,0.072284360999999797,,,,,,1000,0.068647133999999901,-0.0036372269999999998,0.068647133999999999,paired within-site bootstrap 95% percentile interval for delta_r2 only
+shared,nonpfc_minus_pfc,M3_nonPFC,M1_PFC,0.12907001200000001,,,,,,1000,0.15129652800000001,0.022226516000000002,0.15129652800000001,paired within-site bootstrap 95% percentile interval for delta_r2 only

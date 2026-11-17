@@ -10,6 +10,8 @@ from sklearn.exceptions import ConvergenceWarning
 from .io import MODELS, SCHEMES
 
 EPS = 1e-12
+PLS_MAX_ITER = 10000
+PLS_TOL = 1e-6
 
 
 def covariates(cov: np.ndarray, center=None, scale=None):
@@ -68,6 +70,7 @@ class Curve:
     coefs: dict
     weights_y: np.ndarray | None
     weights_x: np.ndarray | None
+    n_iter: tuple[int, ...] = ()
 
     @property
     def max_k(self):
@@ -86,7 +89,14 @@ def fit_curve(x, y, k_max=10, rank_c=1) -> Curve:
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="(?i)y residual is constant.*", category=UserWarning)
         warnings.simplefilter("error", ConvergenceWarning)
-        model = PLSRegression(n_components=cap, scale=False).fit(x, y)
+        try:
+            model = PLSRegression(n_components=cap, scale=False,
+                                  max_iter=PLS_MAX_ITER, tol=PLS_TOL).fit(x, y)
+        except ConvergenceWarning as error:
+            raise ConvergenceWarning(
+                f"PLS did not converge: max_iter={PLS_MAX_ITER}, tol={PLS_TOL}, "
+                f"n_train={len(x)}, n_features={x.shape[1]}, n_components={cap}; {error}"
+            ) from error
     obtained = len(model.n_iter_)
     coefs = {}
     for k in range(1, obtained + 1):
@@ -94,7 +104,8 @@ def fit_curve(x, y, k_max=10, rank_c=1) -> Curve:
         coefs[k] = w @ np.linalg.pinv(p.T @ w) @ q.T
     return Curve(x.mean(0), y.mean(0), coefs,
                  model.y_weights_[:, 0].copy() if obtained else None,
-                 model.x_weights_[:, 0].copy() if obtained else None)
+                 model.x_weights_[:, 0].copy() if obtained else None,
+                 tuple(int(v) for v in model.n_iter_))
 
 
 def reference_axis(y, curve: Curve):
